@@ -1044,6 +1044,23 @@
                 });
             } catch(_) {}
         })();
+
+        // Dev-only mock: render 100 wallets when ?mockWallets=1 is in URL
+        (function maybeMockWallets(){
+            try {
+                const params = new URLSearchParams(window.location.search);
+                if (!params.get('mockWallets')) return;
+                const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+                function randChar() { return alphabet[Math.floor(Math.random()*alphabet.length)]; }
+                function fakeAddress() {
+                    let s='';
+                    for (let i=0;i<44;i++) s += randChar();
+                    return s;
+                }
+                const mocks = Array.from({length:100}, ()=> fakeAddress());
+                renderConnectedWallets(mocks);
+            } catch(_) {}
+        })();
         
         // Wallet Functions
         
@@ -1316,7 +1333,7 @@
                 }
             });
 
-            socket.on('connectedWallets', (wallets) => {
+            function renderConnectedWallets(wallets) {
                 const list = document.getElementById('walletsList');
                 if (!list) return;
                 list.innerHTML = '';
@@ -1351,6 +1368,10 @@
                         }
                     });
                 }
+            }
+
+            socket.on('connectedWallets', (wallets) => {
+                renderConnectedWallets(wallets);
             });
 
             socket.on('recentGames', (games) => {
