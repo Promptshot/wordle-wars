@@ -1121,6 +1121,19 @@
                     updateGameInfo();
                 }
             });
+
+            socket.on('playerDone', (data) => {
+                if (data.gameId !== gameState.currentGame?.id) return;
+                // Optionally reflect that opponent finished; keep waiting for server completion
+                const errorMessage = document.getElementById('errorMessage');
+                if (errorMessage) {
+                    errorMessage.style.display = 'block';
+                    errorMessage.style.color = '#FFA500';
+                    errorMessage.style.border = '1px solid #FFA500';
+                    errorMessage.style.background = 'rgba(255,165,0,0.1)';
+                    errorMessage.textContent = 'Opponent finished. Waiting for final result...';
+                }
+            });
             
             socket.on('gameCompleted', (game) => {
                 if (game.id !== gameState.currentGame?.id) return;

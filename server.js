@@ -402,10 +402,15 @@ app.post('/api/games/:gameId/guess', (req, res) => {
         game.winner = playerAddress;
         game.completedAt = Date.now();
         
+        // Inform players that this player is finished
+        io.emit('playerDone', { gameId, player: playerAddress, result: 'win' });
         // Broadcast game completion
         io.emit('gameCompleted', game);
     } else if (game.guesses.filter(g => g.player === playerAddress).length >= 6) {
         game.playerResults[playerAddress] = 'out_of_guesses';
+        
+        // Notify clients this player is done
+        io.emit('playerDone', { gameId, player: playerAddress, result: 'out_of_guesses' });
         
         // Check if all players are done
         const allPlayersDone = game.players.every(player => 
@@ -441,6 +446,7 @@ app.post('/api/games/:gameId/timeout', (req, res) => {
 
     if (!game.playerResults) game.playerResults = {};
     game.playerResults[playerAddress] = 'timeout';
+    io.emit('playerDone', { gameId, player: playerAddress, result: 'timeout' });
 
     // If both players are done (win or out_of_guesses or timeout), complete game
     const allPlayersDone = game.players.every(player => {
