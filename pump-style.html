@@ -849,6 +849,8 @@
             loadGameState(); // Load any saved game state first
             checkActiveGame();
             checkWalletConnection(); // Check if wallet is already connected
+            // Always connect socket so everyone sees connected wallets and game updates
+            try { if (!socket) { connectToServer(); } } catch(e){}
         });
         
         // Screen Management
@@ -1132,6 +1134,7 @@
         
         function connectToServer() {
             // Connect to WebSocket server
+            if (socket) return; // prevent duplicate connections
             socket = io(SERVER_URL);
             
             socket.on('connect', () => {
