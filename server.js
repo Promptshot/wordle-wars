@@ -425,6 +425,41 @@ app.post('/api/games/:gameId/guess', (req, res) => {
     res.json({ success: true, game });
 });
 
+// Mark a player's timer as expired
+app.post('/api/games/:gameId/timeout', (req, res) => {
+    const { gameId } = req.params;
+    const { playerAddress } = req.body;
+
+    const game = games.find(g => g.id === gameId);
+    if (!game) {
+        return res.status(404).json({ error: 'Game not found' });
+    }
+
+    if (!game.players.includes(playerAddress)) {
+        return res.status(403).json({ error: 'Player not in game' });
+    }
+
+    if (!game.playerResults) game.playerResults = {};
+    game.playerResults[playerAddress] = 'timeout';
+
+    // If both players are done (win or out_of_guesses or timeout), complete game
+    const allPlayersDone = game.players.every(player => {
+        const r = game.playerResults[player];
+        return r === 'win' || r === 'out_of_guesses' || r === 'timeout';
+    });
+
+    if (allPlayersDone) {
+        game.status = 'completed';
+        game.completedAt = Date.now();
+        io.emit('gameCompleted', game);
+    } else {
+        // Inform clients of progress so UI can show waiting state
+        io.emit('guessSubmitted', { gameId, playerDone: playerAddress, result: 'timeout' });
+    }
+
+    res.json({ success: true, game });
+});
+
 // WebSocket connection handling
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);

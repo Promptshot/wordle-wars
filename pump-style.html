@@ -1506,7 +1506,14 @@
                 
                 if (gameState.timeLeft <= 0) {
                     gameState.playerResult = 'timeout';
-                    checkBothPlayersFinished();
+                    // Notify server of timeout and stop local timer
+                    fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/timeout`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ playerAddress: gameState.walletAddress })
+                    }).catch(() => {});
+                    clearInterval(gameState.timer);
+                    gameState.timer = null;
                 }
             }, 1000);
         }
@@ -1525,42 +1532,9 @@
             }
         }
         
-        // Check if both players have finished
+        // Check if both players have finished (server-authoritative)
         function checkBothPlayersFinished() {
-            if (!gameState.opponentResult) {
-                setTimeout(() => {
-                    gameState.opponentResult = simulateOpponentResult();
-                    determineFinalWinner();
-                }, 1000);
-            } else {
-                determineFinalWinner();
-            }
-        }
-        
-        // Simulate opponent result (for demo)
-        function simulateOpponentResult() {
-            const random = Math.random();
-            if (random < 0.3) {
-                return 'win';
-            } else if (random < 0.6) {
-                return 'out_of_guesses';
-            } else {
-                return 'timeout';
-            }
-        }
-        
-        // Determine the final winner
-        function determineFinalWinner() {
-            const playerResult = gameState.playerResult;
-            const opponentResult = gameState.opponentResult;
-            
-            if (playerResult === 'win') {
-                endGame('win');
-            } else if (opponentResult === 'win') {
-                endGame('lose');
-            } else {
-                endGame('both_lost');
-            }
+            // No-op: server emits 'gameCompleted' when both sides are done
         }
         
         // Wordle Functions
@@ -1636,13 +1610,15 @@
             updateWordleGrid();
             saveGameState();
             
-            if (guess === gameState.word) {
-                gameState.playerResult = 'win';
-                checkBothPlayersFinished();
-            } else if (gameState.guesses.length >= 6) {
-                gameState.playerResult = 'out_of_guesses';
-                checkBothPlayersFinished();
-            }
+            // Send guess to server; server decides wins/completion and broadcasts
+            fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/guess`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    playerAddress: gameState.walletAddress,
+                    guess
+                })
+            }).catch(() => {});
             
             input.value = '';
             
