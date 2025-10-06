@@ -663,7 +663,7 @@
                     <div class="wallet-balance" id="walletBalance">0.0000 SOL</div>
                 </div>
                 <button class="btn btn-primary" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
-                <button class="btn btn-secondary" id="manualWalletBtn" onclick="showManualWallet()" style="display: none;">Manual Wallet</button>
+                
                 <button class="btn btn-secondary" id="disconnectBtn" onclick="disconnectWallet()" style="display: none;">Disconnect</button>
             </div>
         </div>
@@ -893,12 +893,8 @@
         
         async function getWalletBalance(publicKey) {
             try {
-                // QuickNode endpoint (your personal QuickNode URL)
-                const quickNodeUrl = 'https://wider-bold-smoke.solana-mainnet.quiknode.pro/00471d02f1b425b32b14c79cc9cae239cda4c0ef/';
-                
-                // Endpoints to try (QuickNode first, then fallbacks)
+                // Public endpoints (no private providers)
                 const endpoints = [
-                    quickNodeUrl, // Your QuickNode endpoint (most reliable)
                     'https://api.mainnet-beta.solana.com',
                     'https://solana-api.projectserum.com',
                     'https://rpc.ankr.com/solana'
@@ -931,7 +927,6 @@
                 
                 if (!provider) {
                     showError('Phantom wallet not found! Please install Phantom wallet.', 'lobby');
-                    document.getElementById('manualWalletBtn').style.display = 'inline-block';
                     setTimeout(() => {
                         window.open('https://phantom.app/', '_blank');
                     }, 2000);
@@ -964,7 +959,6 @@
                         if (error.code === 4001) {
                             throw new Error('User rejected the connection request');
                         } else if (error.message.includes('timeout')) {
-                            document.getElementById('manualWalletBtn').style.display = 'inline-block';
                             throw new Error('Phantom connection timed out - try refreshing the page');
                         } else {
                             throw new Error(`Connection failed: ${error.message}`);
@@ -1010,13 +1004,11 @@
             } catch (error) {
                 
                 if (error.message.includes('timeout')) {
-                    showError('Wallet connection timed out. Use "Manual Wallet" button for testing.', 'lobby');
-                    document.getElementById('manualWalletBtn').style.display = 'inline-block';
+                    showError('Wallet connection timed out. Please refresh and try again.', 'lobby');
                 } else if (error.message.includes('User rejected')) {
                     showError('Wallet connection was cancelled by user.', 'lobby');
                 } else {
                     showError(`Failed to connect wallet: ${error.message}`, 'lobby');
-                    document.getElementById('manualWalletBtn').style.display = 'inline-block';
                 }
             }
         }
@@ -1237,23 +1229,7 @@
             }
         }
         
-        // Manual wallet input for testing
-        function showManualWallet() {
-            const address = prompt('Enter your Solana wallet address for testing:');
-            if (address && address.length > 0) {
-                gameState.walletAddress = address;
-                gameState.wallet = 'manual';
-                gameState.balance = 1.0; // Set a test balance
-                
-                document.getElementById('walletAddress').textContent = address.slice(0, 8) + '...' + address.slice(-4);
-                document.getElementById('walletBalance').textContent = '1.0000 SOL (Test)';
-                document.getElementById('connectBtn').style.display = 'none';
-                document.getElementById('manualWalletBtn').style.display = 'none';
-                document.getElementById('disconnectBtn').style.display = 'inline-block';
-                
-                connectToServer();
-            }
-        }
+        
         
         // Game Creation
         async function createGame() {
