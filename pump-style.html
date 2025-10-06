@@ -874,16 +874,28 @@
             }).catch(()=>{});
             const search = document.getElementById('walletSearch');
             if (search) {
-                search.addEventListener('input', () => {
+                const performSearch = () => {
                     const list = document.getElementById('walletsList');
                     if (!list) return;
                     const val = search.value.trim();
+                    let firstMatch = null;
                     Array.from(list.children).forEach(child => {
                         child.classList.remove('wallet-highlight');
                         if (!val) return;
-                        if (child.textContent.includes(val)) child.classList.add('wallet-highlight');
+                        const fullText = child.firstChild?.textContent || '';
+                        // match full address or any substring
+                        if (fullText.includes(val) || child.textContent.includes(val)) {
+                            child.classList.add('wallet-highlight');
+                            if (!firstMatch) firstMatch = child;
+                        }
                     });
-                });
+                    if (firstMatch) {
+                        firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                };
+                search.addEventListener('input', performSearch);
+                search.addEventListener('paste', () => setTimeout(performSearch, 0));
+                search.addEventListener('keydown', (e) => { if (e.key === 'Enter') performSearch(); });
             }
         });
         
