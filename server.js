@@ -182,16 +182,18 @@ app.get('/api/wallets', (req, res) => {
     }
 });
 
-// Debug endpoint to see all games
-app.get('/api/debug/games', (req, res) => {
-    console.log(`🔍 DEBUG: All games (${games.length} total):`, games.map(g => ({
-        id: g.id,
-        status: g.status,
-        players: g.players,
-        wager: g.wager
-    })));
-    res.json(games);
-});
+// Debug endpoint to see all games (development only)
+if (NODE_ENV === 'development') {
+    app.get('/api/debug/games', (req, res) => {
+        console.log(`🔍 DEBUG: All games (${games.length} total):`, games.map(g => ({
+            id: g.id,
+            status: g.status,
+            players: g.players,
+            wager: g.wager
+        })));
+        res.json(games);
+    });
+}
 
 app.post('/api/games', (req, res) => {
     const { wager, playerAddress } = req.body;
@@ -393,6 +395,25 @@ app.post('/api/games/:gameId/guess', (req, res) => {
     const { gameId } = req.params;
     const { playerAddress, guess } = req.body;
     
+    // Input validation
+    if (!validateGameId(gameId)) {
+        return res.status(400).json({ error: 'Invalid game ID' });
+    }
+    
+    if (!validateWalletAddress(playerAddress)) {
+        return res.status(400).json({ error: 'Invalid wallet address' });
+    }
+    
+    if (!guess || typeof guess !== 'string') {
+        return res.status(400).json({ error: 'Invalid guess' });
+    }
+    
+    // Sanitize and validate guess
+    const sanitizedGuess = sanitizeString(guess).toUpperCase();
+    if (sanitizedGuess.length !== 5 || !/^[A-Z]{5}$/.test(sanitizedGuess)) {
+        return res.status(400).json({ error: 'Guess must be exactly 5 letters' });
+    }
+    
     const game = games.find(g => g.id === gameId);
     if (!game) {
         return res.status(404).json({ error: 'Game not found' });
@@ -412,20 +433,24 @@ app.post('/api/games/:gameId/guess', (req, res) => {
     
     const guessData = {
         player: playerAddress,
-        guess: guess.toUpperCase(),
+        guess: sanitizedGuess,
         timestamp: Date.now()
     };
     
     game.guesses.push(guessData);
     
     // Check if guess is correct
-    if (guess.toUpperCase() === game.word) {
+    if (sanitizedGuess === game.word) {
         // Immediate win ends the game for both
         game.playerResults[playerAddress] = 'win';
         game.status = 'completed';
         game.winner = playerAddress;
         game.completedAt = Date.now();
-        try { completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); if (completedGames.length>50) completedGames.shift(); } catch(e){}
+        try { 
+            completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); 
+            // Keep only last 20 games to prevent memory leak
+            if (completedGames.length > 20) completedGames.shift(); 
+        } catch(e){}
         io.emit('gameCompleted', game);
     } else if (game.guesses.filter(g => g.player === playerAddress).length >= 6) {
         game.playerResults[playerAddress] = 'out_of_guesses';
@@ -446,7 +471,11 @@ app.post('/api/games/:gameId/guess', (req, res) => {
             if (winnerEntry) {
                 game.winner = winnerEntry[0];
             }
-            try { completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); if (completedGames.length>50) completedGames.shift(); } catch(e){}
+            try { 
+            completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); 
+            // Keep only last 20 games to prevent memory leak
+            if (completedGames.length > 20) completedGames.shift(); 
+        } catch(e){}
             io.emit('gameCompleted', game);
         }
     }
@@ -484,7 +513,11 @@ app.post('/api/games/:gameId/timeout', (req, res) => {
     if (allPlayersDone) {
         game.status = 'completed';
         game.completedAt = Date.now();
-        try { completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); if (completedGames.length>50) completedGames.shift(); } catch(e){}
+        try { 
+            completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); 
+            // Keep only last 20 games to prevent memory leak
+            if (completedGames.length > 20) completedGames.shift(); 
+        } catch(e){}
         io.emit('gameCompleted', game);
     } else {
         // Inform clients of progress so UI can show waiting state

@@ -879,22 +879,20 @@
                     if (!list) return;
                     const val = search.value.trim().toLowerCase();
                     let firstMatch = null;
+                    
+                    // Extract first 8 characters from search input (simple approach)
+                    const searchPrefix = val.substring(0, 8);
+                    
                     Array.from(list.children).forEach(child => {
                         child.classList.remove('wallet-highlight');
-                        if (!val) return;
+                        if (!searchPrefix) return;
                         
-                        // Get the displayed text (shortened version)
+                        // Get the displayed text (first 8 chars + ... + last 4 chars)
                         const displayText = child.firstChild?.textContent || '';
-                        // Get the full address from the Solscan link
-                        const solscanLink = child.querySelector('a');
-                        const fullAddress = solscanLink ? solscanLink.href.split('/').pop().toLowerCase() : '';
+                        const displayPrefix = displayText.substring(0, 8).toLowerCase();
                         
-                        // Check if search matches the full address (for pasting complete addresses)
-                        const isFullMatch = val.length > 8 && fullAddress.includes(val);
-                        // Check if search matches the displayed text (for partial typing)
-                        const isPartialMatch = displayText.toLowerCase().includes(val);
-                        
-                        if (isFullMatch || isPartialMatch) {
+                        // Simple match: first 8 characters
+                        if (displayPrefix.includes(searchPrefix)) {
                             child.classList.add('wallet-highlight');
                             if (!firstMatch) firstMatch = child;
                         }
@@ -1315,6 +1313,23 @@
                 // Immediately update available games when a game is removed
                 updateAvailableGames();
                 removeFromGameFeed(data.gameId);
+            });
+            
+            // Handle disconnections
+            socket.on('disconnect', () => {
+                console.log('Socket disconnected');
+                showError('Connection lost. Attempting to reconnect...', 'lobby');
+                // Attempt to reconnect after a delay
+                setTimeout(() => {
+                    if (!socket || socket.disconnected) {
+                        connectToServer();
+                    }
+                }, 3000);
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.log('Socket connection error:', error);
+                showError('Connection error. Please refresh the page.', 'lobby');
             });
         }
         
