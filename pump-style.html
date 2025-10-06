@@ -996,6 +996,10 @@
                 
                 // Connect to server
                 connectToServer();
+                // Retry balance in background if initial fetch failed or returned 0
+                if (!Number.isFinite(solBalance) || solBalance === 0) {
+                    retryFetchBalance(publicKey, 3);
+                }
                 
             } catch (error) {
                 
@@ -1007,6 +1011,21 @@
                     showError(`Failed to connect wallet: ${error.message}`, 'lobby');
                 }
             }
+        }
+
+        async function retryFetchBalance(publicKey, attempts) {
+            try {
+                for (let i = 0; i < attempts; i++) {
+                    await new Promise(r => setTimeout(r, 1500 * (i + 1)));
+                    const bal = await getWalletBalance(publicKey);
+                    if (Number.isFinite(bal) && bal > 0) {
+                        gameState.balance = bal;
+                        const walletBalanceEl = document.getElementById('walletBalance');
+                        if (walletBalanceEl) walletBalanceEl.textContent = bal.toFixed(4) + ' SOL';
+                        return;
+                    }
+                }
+            } catch (_) {}
         }
         
         async function disconnectWallet() {
