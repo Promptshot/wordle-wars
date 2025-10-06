@@ -247,7 +247,13 @@
         .wallet-search { margin-top: 0; border-top: 1px solid #2A2A2A; padding-top: 10px; background: #121212; position: sticky; bottom: 0; }
         .wallet-search input { width: 100%; padding: 8px 10px; background:#1A1A1A; border:1px solid #2A2A2A; border-radius:6px; color:#fff; font-size:12px; }
         .wallet-search .hint { color:#888; font-size:11px; margin-top:6px; }
-        .wallet-highlight { outline: 2px solid #FFD700; }
+        .wallet-highlight { box-shadow: inset 0 0 0 2px #FFD700; background: #1F1F00; border-radius: 6px; }
+        @keyframes walletFlash {
+            0% { box-shadow: inset 0 0 0 0px #FFD700; }
+            30% { box-shadow: inset 0 0 0 3px #FFD700; }
+            100% { box-shadow: inset 0 0 0 2px #FFD700; }
+        }
+        .wallet-flash { animation: walletFlash 900ms ease-out; }
 
         /* Dark scrollbar theme */
         #walletsList::-webkit-scrollbar {
@@ -926,9 +932,12 @@
                         }
                     });
                     if (firstMatch) {
-                        // Smoothly scroll the wallets list container to the match
+                        // Center the match in the viewport and flash it
                         const childTop = firstMatch.offsetTop;
-                        list.scrollTo({ top: Math.max(childTop - list.clientHeight / 3, 0), behavior: 'smooth' });
+                        const targetTop = Math.max(childTop - (list.clientHeight - firstMatch.clientHeight) / 2, 0);
+                        list.scrollTo({ top: targetTop, behavior: 'smooth' });
+                        firstMatch.classList.add('wallet-flash');
+                        setTimeout(() => firstMatch.classList.remove('wallet-flash'), 1000);
                     }
                 };
                 search.addEventListener('input', performSearch);
@@ -1437,7 +1446,10 @@
                         if (firstMatch) {
                             console.log('Found match, scrolling to it');
                             const childTop = firstMatch.offsetTop;
-                            list.scrollTo({ top: Math.max(childTop - list.clientHeight / 3, 0), behavior: 'smooth' });
+                            const targetTop = Math.max(childTop - (list.clientHeight - firstMatch.clientHeight) / 2, 0);
+                            list.scrollTo({ top: targetTop, behavior: 'smooth' });
+                            firstMatch.classList.add('wallet-flash');
+                            setTimeout(() => firstMatch.classList.remove('wallet-flash'), 1000);
                         } else {
                             console.log('No matches found');
                         }
