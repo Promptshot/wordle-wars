@@ -1271,6 +1271,13 @@
                     });
                 }
             });
+
+            socket.on('recentGames', (games) => {
+                try {
+                    if (!Array.isArray(games)) return;
+                    games.forEach(g => trackGameFeed({ id: g.id, wager: g.wager, status: g.status || 'completed' }));
+                } catch (e) {}
+            });
             
             socket.on('gameCompleted', (game) => {
                 if (game.id !== gameState.currentGame?.id) return;

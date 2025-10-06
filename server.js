@@ -102,6 +102,7 @@ function sanitizeString(str) {
 
 // In-memory storage (simple for MVP)
 let games = [];
+const completedGames = []; // in-memory recent feed
 let players = new Map(); // socketId -> player info
 let socketIdToWallet = new Map();
 let connectedWallets = new Set();
@@ -225,7 +226,8 @@ app.post('/api/games', (req, res) => {
     }
     
     const gameId = 'game_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    const word = words[Math.floor(Math.random() * words.length)];
+    // Force fixed word for testing
+    const word = 'MEMES';
     
     const newGame = {
         id: gameId,
@@ -449,6 +451,7 @@ app.post('/api/games/:gameId/guess', (req, res) => {
             if (winnerEntry) {
                 game.winner = winnerEntry[0];
             }
+            try { completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); if (completedGames.length>50) completedGames.shift(); } catch(e){}
             io.emit('gameCompleted', game);
         }
     }
@@ -486,6 +489,7 @@ app.post('/api/games/:gameId/timeout', (req, res) => {
     if (allPlayersDone) {
         game.status = 'completed';
         game.completedAt = Date.now();
+        try { completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); if (completedGames.length>50) completedGames.shift(); } catch(e){}
         io.emit('gameCompleted', game);
     } else {
         // Inform clients of progress so UI can show waiting state
@@ -501,6 +505,7 @@ io.on('connection', (socket) => {
     // Send current wallet list to this socket immediately
     try {
         socket.emit('connectedWallets', Array.from(connectedWallets));
+        socket.emit('recentGames', completedGames);
     } catch (e) {}
     
     socket.on('joinGame', (gameId) => {
