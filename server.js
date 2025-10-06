@@ -487,6 +487,42 @@ app.post('/api/games/:gameId/guess', (req, res) => {
 });
 
 // Mark a player's timer as expired
+// API to rejoin a game after disconnection
+app.post('/api/games/:gameId/rejoin', (req, res) => {
+    const { gameId } = req.params;
+    const { playerAddress } = req.body;
+    
+    console.log(`🔄 Rejoin request: Game ${gameId}, Player ${playerAddress}`);
+    
+    // Input validation
+    if (!validateGameId(gameId)) {
+        return res.status(400).json({ error: 'Invalid game ID' });
+    }
+    
+    if (!validateWalletAddress(playerAddress)) {
+        return res.status(400).json({ error: 'Invalid wallet address' });
+    }
+    
+    const game = games.find(g => g.id === gameId);
+    if (!game) {
+        console.log('❌ Game not found for rejoin');
+        return res.status(404).json({ error: 'Game not found' });
+    }
+    
+    if (!game.players.includes(playerAddress)) {
+        console.log('❌ Player not in this game');
+        return res.status(403).json({ error: 'Player not in this game' });
+    }
+    
+    if (game.status === 'completed') {
+        console.log('❌ Game already completed');
+        return res.status(400).json({ error: 'Game is already completed' });
+    }
+    
+    console.log('✅ Player rejoined game successfully');
+    res.json(game);
+});
+
 app.post('/api/games/:gameId/timeout', (req, res) => {
     const { gameId } = req.params;
     const { playerAddress } = req.body;

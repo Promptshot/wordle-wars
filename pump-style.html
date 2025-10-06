@@ -1192,7 +1192,10 @@
             socket = io(SERVER_URL);
             
             socket.on('connect', () => {
-                // Connected to server
+                // Connected to server - attempt to rejoin active game if exists
+                if (gameState.currentGame && gameState.walletAddress && !gameState.gameOver) {
+                    attemptRejoinGame();
+                }
             });
             
             socket.on('gameCreated', (game) => {
@@ -1347,6 +1350,43 @@
                 if (gameState.currentGame.status === 'playing') {
                     startGame();
                 }
+            }
+        }
+        
+        async function attemptRejoinGame() {
+            if (!gameState.currentGame || !gameState.walletAddress) return;
+            
+            try {
+                const response = await fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/rejoin`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerAddress: gameState.walletAddress })
+                });
+                
+                if (response.ok) {
+                    const game = await response.json();
+                    gameState.currentGame = game;
+                    console.log('✅ Successfully rejoined game');
+                    
+                    // Show game room and start if playing
+                    showGameRoom();
+                    if (game.status === 'playing') {
+                        startGame();
+                    }
+                } else {
+                    const error = await response.json();
+                    console.log('❌ Failed to rejoin game:', error.error);
+                    // Clear the invalid game state
+                    clearGameState();
+                    showScreen('lobby');
+                    showError('Could not rejoin game. Game may have ended.', 'lobby');
+                }
+            } catch (error) {
+                console.log('❌ Rejoin request failed:', error);
+                // Clear the invalid game state
+                clearGameState();
+                showScreen('lobby');
+                showError('Connection error. Please try again.', 'lobby');
             }
         }
         
@@ -2098,10 +2138,15 @@
                         gameState.word = savedState.word;
                         gameState.timeLeft = savedState.timeLeft || 300;
                         
-                        // If game was in progress, show game room
+                        // If game was in progress, attempt to rejoin
                         if (gameState.currentGame.status === 'playing') {
-                            showGameRoom();
-                            startGame();
+                            // Wait for socket connection before attempting rejoin
+                            if (socket && socket.connected) {
+                                attemptRejoinGame();
+                            } else {
+                                // Show game room immediately, rejoin will happen on socket connect
+                                showGameRoom();
+                            }
                         }
                     }
                 }
