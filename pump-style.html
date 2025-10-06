@@ -1624,7 +1624,7 @@
             saveGameState();
             
             // If player reached 6 guesses, lock input and wait for opponent/server
-            if (gameState.guesses.length >= 6) {
+            if (gameState.guesses.length >= 6 && guess !== gameState.word) {
                 const inputSection = document.querySelector('.input-section');
                 if (inputSection) inputSection.style.display = 'none';
                 if (gameState.timer) { clearInterval(gameState.timer); gameState.timer = null; }
@@ -1634,8 +1634,10 @@
                     errorMessage.style.color = '#FFA500';
                     errorMessage.style.border = '1px solid #FFA500';
                     errorMessage.style.background = 'rgba(255,165,0,0.1)';
-                    errorMessage.textContent = 'You used all guesses. Waiting for opponent...';
+                    errorMessage.textContent = 'You used all guesses. You lost this match.';
                 }
+                // End locally as a loss; opponent may continue
+                endGame('lose');
             }
             
             // Send guess to server; server decides wins/completion and broadcasts
@@ -1753,8 +1755,8 @@
                     titleElement.textContent = 'You Lost';
                     messageElement.innerHTML = `
                         The word was "${gameState.word}".<br>
-                        <strong>Opponent wins: ${totalPot} SOL</strong> (entire pot)<br>
-                        <small>Better luck next time!</small>
+                        <strong>Opponent wins: ${totalPot} SOL</strong><br>
+                        <small>Returning to home...</small>
                     `;
                     resultDiv.className = 'result lose';
                     break;
@@ -1778,6 +1780,13 @@
                     resultDiv.className = 'result lose';
                     break;
             }
+            // Auto return to lobby after 4 seconds
+            setTimeout(() => {
+                gameState.currentGame = null;
+                gameState.gameOver = false;
+                showScreen('lobby');
+                updateAvailableGames();
+            }, 4000);
             
         }
         
