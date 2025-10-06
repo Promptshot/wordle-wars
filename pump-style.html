@@ -893,16 +893,11 @@
             checkWalletConnection(); // Check if wallet is already connected
             // Always connect socket so everyone sees connected wallets and game updates
             try { if (!socket) { connectToServer(); } } catch(e){}
-            // Initial connected wallets: use mocks if enabled, else fetch from server
-            if (window._mockWalletsEnabled && Array.isArray(window._mockWallets) && window._mockWallets.length) {
-                const merged = mergeWalletsWithUser(window._mockWallets);
-                window.renderConnectedWallets(merged);
-            } else {
-                fetch(`${SERVER_URL}/api/wallets`).then(r=>r.json()).then((wallets)=>{
-                    const finalList = mergeWalletsWithUser(wallets || []);
-                    window.renderConnectedWallets(finalList);
-                }).catch(()=>{});
-            }
+            // Initial connected wallets from server
+            fetch(`${SERVER_URL}/api/wallets`).then(r=>r.json()).then((wallets)=>{
+                const finalList = mergeWalletsWithUser(wallets || []);
+                window.renderConnectedWallets(finalList);
+            }).catch(()=>{});
             const search = document.getElementById('walletSearch');
             if (search) {
                 const performSearch = () => {
@@ -1084,27 +1079,6 @@
             } catch(_) {}
         })();
 
-        // Dev-only mock: render 100 wallets when ?mockWallets=1 is in URL
-        (function maybeMockWallets(){
-            try {
-                const params = new URLSearchParams(window.location.search);
-                const queryEnabled = !!params.get('mockWallets');
-                const storedEnabled = localStorage.getItem('ww_mockWallets') === '1';
-                if (!queryEnabled && !storedEnabled) return;
-                const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-                function randChar() { return alphabet[Math.floor(Math.random()*alphabet.length)]; }
-                function fakeAddress() {
-                    let s='';
-                    for (let i=0;i<44;i++) s += randChar();
-                    return s;
-                }
-                const mocks = Array.from({length:100}, ()=> fakeAddress());
-                window._mockWalletsEnabled = true;
-                window._mockWallets = mocks;
-                if (queryEnabled) localStorage.setItem('ww_mockWallets','1');
-            } catch(_) {}
-        })();
-
         function mergeWalletsWithUser(list) {
             try {
                 const set = new Set(Array.isArray(list) ? list : []);
@@ -1116,9 +1090,8 @@
         // Global renderer for connected wallets (used by both socket and initial load)
         window.renderConnectedWallets = function(wallets) {
             try {
-                console.log('[Wallets] render start. count=', Array.isArray(wallets) ? wallets.length : 'n/a');
                 const list = document.getElementById('walletsList');
-                if (!list) { console.warn('[Wallets] walletsList not found'); return; }
+                if (!list) { return; }
                 list.innerHTML = '';
                 if (!wallets || wallets.length === 0) {
                     list.innerHTML = '<div class="wallet-item">None</div>';
@@ -1144,7 +1117,6 @@
                 const input = document.getElementById('walletSearch');
                 if (input && input.value) {
                     const val = input.value.trim().toLowerCase();
-                    console.log('[Wallets] post-render search for:', val);
                     let firstMatch = null;
                     Array.from(list.children).forEach((child, index) => {
                         child.classList.remove('wallet-highlight');
@@ -1170,7 +1142,7 @@
                         setTimeout(() => firstMatch.classList.remove('wallet-flash'), 1000);
                     }
                 }
-            } catch (e) { console.error('[Wallets] render error', e); }
+            } catch (e) { }
         }
         
         // Wallet Functions
@@ -1520,12 +1492,6 @@
             }
 
             socket.on('connectedWallets', (wallets) => {
-                // If mocks are enabled, always render the mocks + current user
-                if (window._mockWalletsEnabled && Array.isArray(window._mockWallets)) {
-                    const merged = mergeWalletsWithUser(window._mockWallets);
-                    window.renderConnectedWallets(merged);
-                    return;
-                }
                 window.renderConnectedWallets(mergeWalletsWithUser(wallets || []));
             });
 
