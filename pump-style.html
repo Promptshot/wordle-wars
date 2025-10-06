@@ -929,51 +929,121 @@
             
         }
         
-        // Check if wallet is already connected on page load
+        // Check if wallet is already connected on page load (trust-only reconnect)
         async function checkWalletConnection() {
             try {
                 const provider = getProvider();
                 
-                if (provider && provider.isConnected && provider.isConnected()) {
-                    const publicKey = provider.publicKey?.toString();
-                    if (publicKey) {
-                        
-                        // Update game state
-                        gameState.wallet = 'phantom';
-                        gameState.walletAddress = publicKey;
-                        gameState.balance = await getWalletBalance(publicKey);
-                        
-                        // Update UI
-                        const walletAddressEl = document.getElementById('walletAddress');
-                        const walletBalanceEl = document.getElementById('walletBalance');
-                        const connectBtnEl = document.getElementById('connectBtn');
-                        const disconnectBtnEl = document.getElementById('disconnectBtn');
-                        
-                        if (walletAddressEl) {
-                            walletAddressEl.textContent = `${publicKey.slice(0, 8)}...${publicKey.slice(-4)}`;
-                        }
-                        
-                        if (walletBalanceEl) {
-                            walletBalanceEl.textContent = `${gameState.balance.toFixed(4)} SOL`;
-                        }
-                        
-                        if (connectBtnEl) {
-                            connectBtnEl.style.display = 'none';
-                        }
-                        
-                        if (disconnectBtnEl) {
-                            disconnectBtnEl.style.display = 'inline-block';
-                        }
-                        
-                        // Connect to server
-                        connectToServer();
-                        
+                if (!provider) return;
+
+                // Use Phantom trust-only reconnect to restore silently after refresh
+                try {
+                    if (provider.connect) {
+                        await provider.connect({ onlyIfTrusted: true });
                     }
-                } else {
+                } catch (_) {}
+
+                const connected = (provider.isConnected && provider.isConnected()) || !!provider.publicKey;
+                const publicKey = provider.publicKey?.toString();
+                if (!connected || !publicKey) return;
+
+                // Update game state
+                gameState.wallet = 'phantom';
+                gameState.walletAddress = publicKey;
+                gameState.balance = await getWalletBalance(publicKey);
+                
+                // Update UI
+                const walletAddressEl = document.getElementById('walletAddress');
+                const walletBalanceEl = document.getElementById('walletBalance');
+                const connectBtnEl = document.getElementById('connectBtn');
+                const disconnectBtnEl = document.getElementById('disconnectBtn');
+                
+                if (walletAddressEl) {
+                    walletAddressEl.textContent = `${publicKey.slice(0, 8)}...${publicKey.slice(-4)}`;
                 }
+                
+                if (walletBalanceEl) {
+                    walletBalanceEl.textContent = `${gameState.balance.toFixed(4)} SOL`;
+                }
+                
+                if (connectBtnEl) {
+                    connectBtnEl.style.display = 'none';
+                }
+                
+                if (disconnectBtnEl) {
+                    disconnectBtnEl.style.display = 'inline-block';
+                }
+                
+                // Connect to server and register
+                connectToServer();
+                setTimeout(() => { if (socket) { try { socket.emit('registerWallet', publicKey); } catch(e){} } }, 300);
             } catch (error) {
             }
         }
+
+        // Keep UI in sync with Phantom events
+        (function attachWalletListeners(){
+            try {
+                const provider = getProvider();
+                if (!provider) return;
+                if (provider._ww_listenersAttached) return; // idempotent
+                provider._ww_listenersAttached = true;
+
+                provider.on && provider.on('connect', (pubKey) => {
+                    const publicKey = (pubKey?.toString?.() || provider.publicKey?.toString?.() || '').toString();
+                    if (!publicKey) return;
+                    gameState.wallet = 'phantom';
+                    gameState.walletAddress = publicKey;
+                    // Update UI quickly; balance fetched async
+                    const walletAddressEl = document.getElementById('walletAddress');
+                    if (walletAddressEl) walletAddressEl.textContent = `${publicKey.slice(0, 8)}...${publicKey.slice(-4)}`;
+                    const connectBtnEl = document.getElementById('connectBtn');
+                    const disconnectBtnEl = document.getElementById('disconnectBtn');
+                    if (connectBtnEl) connectBtnEl.style.display = 'none';
+                    if (disconnectBtnEl) disconnectBtnEl.style.display = 'inline-block';
+                    // Register with server
+                    if (socket) { try { socket.emit('registerWallet', publicKey); } catch(e){} }
+                    // Fetch balance in background
+                    getWalletBalance(publicKey).then(bal => {
+                        gameState.balance = bal;
+                        const walletBalanceEl = document.getElementById('walletBalance');
+                        if (walletBalanceEl) walletBalanceEl.textContent = `${bal.toFixed(4)} SOL`;
+                    }).catch(()=>{});
+                });
+
+                provider.on && provider.on('disconnect', () => {
+                    gameState.wallet = null;
+                    gameState.walletAddress = null;
+                    gameState.balance = 0;
+                    const walletAddressEl = document.getElementById('walletAddress');
+                    const walletBalanceEl = document.getElementById('walletBalance');
+                    const connectBtnEl = document.getElementById('connectBtn');
+                    const disconnectBtnEl = document.getElementById('disconnectBtn');
+                    if (walletAddressEl) walletAddressEl.textContent = 'Not Connected';
+                    if (walletBalanceEl) walletBalanceEl.textContent = '0.0000 SOL';
+                    if (connectBtnEl) connectBtnEl.style.display = 'inline-block';
+                    if (disconnectBtnEl) disconnectBtnEl.style.display = 'none';
+                });
+
+                provider.on && provider.on('accountChanged', (pubKey) => {
+                    const publicKey = (pubKey?.toString?.() || provider.publicKey?.toString?.() || '').toString();
+                    if (!publicKey) {
+                        // treated as disconnect
+                        if (typeof disconnectWallet === 'function') disconnectWallet();
+                        return;
+                    }
+                    gameState.walletAddress = publicKey;
+                    const walletAddressEl = document.getElementById('walletAddress');
+                    if (walletAddressEl) walletAddressEl.textContent = `${publicKey.slice(0, 8)}...${publicKey.slice(-4)}`;
+                    if (socket) { try { socket.emit('registerWallet', publicKey); } catch(e){} }
+                    getWalletBalance(publicKey).then(bal => {
+                        gameState.balance = bal;
+                        const walletBalanceEl = document.getElementById('walletBalance');
+                        if (walletBalanceEl) walletBalanceEl.textContent = `${bal.toFixed(4)} SOL`;
+                    }).catch(()=>{});
+                });
+            } catch(_) {}
+        })();
         
         // Wallet Functions
         
