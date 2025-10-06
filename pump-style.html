@@ -1572,7 +1572,7 @@
             socket.on('gameRemoved', (data) => {
                 // Immediately update available games when a game is removed
                 updateAvailableGames();
-                removeFromGameFeed(data.gameId);
+                try { if (typeof removeFromGameFeed === 'function') { removeFromGameFeed(data.gameId); } } catch (_) {}
             });
             
             // Handle disconnections (throttled message)
@@ -1580,7 +1580,9 @@
             socket.on('disconnect', (reason) => {
                 log('disconnect', { reason });
                 const now = Date.now();
-                if (now - lastDisconnectToast > 8000) { // throttle to every 8s max
+                // Suppress user-facing toast for intentional client disconnects
+                const shouldToast = reason !== 'io client disconnect' && (now - lastDisconnectToast > 8000);
+                if (shouldToast) { // throttle to every 8s max
                     showError('Connection lost. Attempting to reconnect...', 'lobby');
                     lastDisconnectToast = now;
                 }
