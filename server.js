@@ -172,6 +172,15 @@ app.get('/api/games', (req, res) => {
     res.json(waitingGames);
 });
 
+// Public endpoint to get currently known connected wallets
+app.get('/api/wallets', (req, res) => {
+    try {
+        res.json(Array.from(connectedWallets));
+    } catch (e) {
+        res.json([]);
+    }
+});
+
 // Debug endpoint to see all games
 app.get('/api/debug/games', (req, res) => {
     console.log(`🔍 DEBUG: All games (${games.length} total):`, games.map(g => ({
@@ -235,6 +244,11 @@ app.post('/api/games', (req, res) => {
     
     // Broadcast to all connected clients
     io.emit('gameCreated', newGame);
+    // Track wallet as connected/active
+    try {
+        if (playerAddress) connectedWallets.add(playerAddress);
+        io.emit('connectedWallets', Array.from(connectedWallets));
+    } catch (e) {}
     
     res.json(newGame);
 });
@@ -286,6 +300,11 @@ app.post('/api/games/:gameId/join', (req, res) => {
     
     // Broadcast to all connected clients
     io.emit('gameJoined', game);
+    // Track wallet as connected/active
+    try {
+        if (playerAddress) connectedWallets.add(playerAddress);
+        io.emit('connectedWallets', Array.from(connectedWallets));
+    } catch (e) {}
     
     console.log('✅ Player joined game successfully');
     res.json(game);

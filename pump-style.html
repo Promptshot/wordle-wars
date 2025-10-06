@@ -851,6 +851,20 @@
             checkWalletConnection(); // Check if wallet is already connected
             // Always connect socket so everyone sees connected wallets and game updates
             try { if (!socket) { connectToServer(); } } catch(e){}
+            // Fetch initial wallets list so the panel never shows empty
+            fetch(`${SERVER_URL}/api/wallets`).then(r=>r.json()).then((wallets)=>{
+                const list = document.getElementById('walletsList');
+                if (!list) return;
+                list.innerHTML='';
+                if (!wallets || wallets.length===0) { list.innerHTML = '<div class="wallet-item">None</div>'; return; }
+                wallets.forEach(w=>{
+                    const item=document.createElement('div');
+                    item.className='wallet-item';
+                    const left=document.createElement('span'); left.textContent = w.slice(0,8)+'...'+w.slice(-4);
+                    const link=document.createElement('a'); link.href=`https://solscan.io/account/${w}`; link.target='_blank'; link.rel='noopener noreferrer'; link.className='wallet-link'; link.textContent='Solscan';
+                    item.appendChild(left); item.appendChild(link); list.appendChild(item);
+                });
+            }).catch(()=>{})
         });
         
         // Screen Management
