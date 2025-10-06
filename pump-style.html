@@ -1398,18 +1398,33 @@
                     item.appendChild(link);
                     list.appendChild(item);
                 });
-                // Highlight search match
-                const input = document.getElementById('walletSearch');
-                if (input && input.value) {
-                    const val = input.value.trim();
-                    Array.from(list.children).forEach(child => {
-                        child.classList.remove('wallet-highlight');
-                        const txt = child.firstChild?.textContent?.replace('...','');
-                        if (val && (child.textContent.includes(val) || txt === val)) {
-                            child.classList.add('wallet-highlight');
+                // Re-apply highlight and scroll after every render
+                try {
+                    const input = document.getElementById('walletSearch');
+                    if (input && input.value) {
+                        const val = input.value.trim().toLowerCase();
+                        let firstMatch = null;
+                        Array.from(list.children).forEach(child => {
+                            child.classList.remove('wallet-highlight');
+                            const span = child.querySelector('span');
+                            const link = child.querySelector('a');
+                            const displayText = (span?.textContent || '').toLowerCase();
+                            const displayPrefix = displayText.substring(0, 8);
+                            const fullAddress = (link?.href?.split('/')?.pop() || '').toLowerCase();
+                            if (!val) return;
+                            const matchesFull = fullAddress.includes(val);
+                            const matchesPrefix = displayPrefix.includes(val.substring(0,8));
+                            if (matchesFull || matchesPrefix) {
+                                child.classList.add('wallet-highlight');
+                                if (!firstMatch) firstMatch = child;
+                            }
+                        });
+                        if (firstMatch) {
+                            const childTop = firstMatch.offsetTop;
+                            list.scrollTo({ top: Math.max(childTop - list.clientHeight / 3, 0), behavior: 'smooth' });
                         }
-                    });
-                }
+                    }
+                } catch(_) {}
             }
 
             socket.on('connectedWallets', (wallets) => {
@@ -1457,10 +1472,15 @@
                 removeFromGameFeed(data.gameId);
             });
             
-            // Handle disconnections
+            // Handle disconnections (throttled message)
+            let lastDisconnectToast = 0;
             socket.on('disconnect', () => {
                 console.log('Socket disconnected');
-                showError('Connection lost. Attempting to reconnect...', 'lobby');
+                const now = Date.now();
+                if (now - lastDisconnectToast > 8000) { // throttle to every 8s max
+                    showError('Connection lost. Attempting to reconnect...', 'lobby');
+                    lastDisconnectToast = now;
+                }
                 // Attempt to reconnect after a delay
                 setTimeout(() => {
                     if (!socket || socket.disconnected) {
