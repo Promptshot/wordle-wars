@@ -893,8 +893,9 @@
         
         async function getWalletBalance(publicKey) {
             try {
-                // Prefer a CORS-friendly public endpoint; fall back to silent default
+                // Use QuickNode first, fall back to public RPC if needed
                 const endpoints = [
+                    'https://wider-bold-smoke.solana-mainnet.quiknode.pro/00471d02f1b425b32b14c79cc9cae239cda4c0ef/',
                     'https://rpc.ankr.com/solana'
                 ];
 
@@ -905,11 +906,10 @@
                         const balance = await connection.getBalance(publicKeyObj);
                         return balance / solanaWeb3.LAMPORTS_PER_SOL;
                     } catch (_) {
-                        // ignore and try next
+                        // try next endpoint
                     }
                 }
 
-                // Graceful fallback if all RPCs are blocked/rate-limited
                 return 0;
             } catch (_) {
                 return 0;
