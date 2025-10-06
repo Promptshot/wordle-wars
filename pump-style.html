@@ -236,6 +236,10 @@
             margin-left: 8px;
         }
         .wallet-link:hover { text-decoration: underline; }
+        .wallet-search { margin-top: 14px; border-top: 1px solid #2A2A2A; padding-top: 10px; }
+        .wallet-search input { width: 100%; padding: 8px 10px; background:#1A1A1A; border:1px solid #2A2A2A; border-radius:6px; color:#fff; font-size:12px; }
+        .wallet-search .hint { color:#888; font-size:11px; margin-top:6px; }
+        .wallet-highlight { outline: 2px solid #FFD700; }
 
         .wallet-info {
             display: flex;
@@ -697,6 +701,10 @@
     <div class="right-panel">
         <div class="panel-title">Connected Wallets</div>
         <div id="walletsList"><div class="wallet-item">None</div></div>
+        <div class="wallet-search">
+            <input type="text" id="walletSearch" placeholder="Paste wallet to verify...">
+            <div class="hint">We highlight it if connected</div>
+        </div>
     </div>
 
     <!-- Main Content -->
@@ -864,7 +872,20 @@
                     const link=document.createElement('a'); link.href=`https://solscan.io/account/${w}`; link.target='_blank'; link.rel='noopener noreferrer'; link.className='wallet-link'; link.textContent='Solscan';
                     item.appendChild(left); item.appendChild(link); list.appendChild(item);
                 });
-            }).catch(()=>{})
+            }).catch(()=>{});
+            const search = document.getElementById('walletSearch');
+            if (search) {
+                search.addEventListener('input', () => {
+                    const list = document.getElementById('walletsList');
+                    if (!list) return;
+                    const val = search.value.trim();
+                    Array.from(list.children).forEach(child => {
+                        child.classList.remove('wallet-highlight');
+                        if (!val) return;
+                        if (child.textContent.includes(val)) child.classList.add('wallet-highlight');
+                    });
+                });
+            }
         });
         
         // Screen Management
@@ -1226,6 +1247,18 @@
                     item.appendChild(link);
                     list.appendChild(item);
                 });
+                // Highlight search match
+                const input = document.getElementById('walletSearch');
+                if (input && input.value) {
+                    const val = input.value.trim();
+                    Array.from(list.children).forEach(child => {
+                        child.classList.remove('wallet-highlight');
+                        const txt = child.firstChild?.textContent?.replace('...','');
+                        if (val && (child.textContent.includes(val) || txt === val)) {
+                            child.classList.add('wallet-highlight');
+                        }
+                    });
+                }
             });
             
             socket.on('gameCompleted', (game) => {
