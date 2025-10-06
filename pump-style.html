@@ -904,26 +904,31 @@
                     if (!list) return;
                     const val = search.value.trim().toLowerCase();
                     let firstMatch = null;
-                    
-                    // Extract first 8 characters from search input (simple approach)
-                    const searchPrefix = val.substring(0, 8);
-                    
+                    const prefix = val.substring(0, 8);
+
                     Array.from(list.children).forEach(child => {
                         child.classList.remove('wallet-highlight');
-                        if (!searchPrefix) return;
-                        
-                        // Get the displayed text (first 8 chars + ... + last 4 chars)
-                        const displayText = child.firstChild?.textContent || '';
-                        const displayPrefix = displayText.substring(0, 8).toLowerCase();
-                        
-                        // Simple match: first 8 characters
-                        if (displayPrefix.includes(searchPrefix)) {
+                        if (!val) return;
+
+                        const span = child.querySelector('span');
+                        const link = child.querySelector('a');
+                        const displayText = (span?.textContent || '').toLowerCase();
+                        const displayPrefix = displayText.substring(0, 8);
+                        const fullAddress = (link?.href?.split('/')?.pop() || '').toLowerCase();
+
+                        const matchesFull = fullAddress.includes(val);
+                        const matchesPrefix = prefix && displayPrefix.includes(prefix);
+
+                        if (matchesFull || matchesPrefix) {
                             child.classList.add('wallet-highlight');
                             if (!firstMatch) firstMatch = child;
                         }
                     });
                     if (firstMatch) {
-                        firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // Smoothly scroll the wallets list container to the match
+                        const listRect = list.getBoundingClientRect();
+                        const childTop = firstMatch.offsetTop;
+                        list.scrollTo({ top: Math.max(childTop - list.clientHeight / 3, 0), behavior: 'smooth' });
                     }
                 };
                 search.addEventListener('input', performSearch);
@@ -1074,7 +1079,9 @@
         (function maybeMockWallets(){
             try {
                 const params = new URLSearchParams(window.location.search);
-                if (!params.get('mockWallets')) return;
+                const queryEnabled = !!params.get('mockWallets');
+                const storedEnabled = localStorage.getItem('ww_mockWallets') === '1';
+                if (!queryEnabled && !storedEnabled) return;
                 const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
                 function randChar() { return alphabet[Math.floor(Math.random()*alphabet.length)]; }
                 function fakeAddress() {
@@ -1085,6 +1092,7 @@
                 const mocks = Array.from({length:100}, ()=> fakeAddress());
                 window._mockWalletsEnabled = true;
                 window._mockWallets = mocks;
+                if (queryEnabled) localStorage.setItem('ww_mockWallets','1');
             } catch(_) {}
         })();
 
