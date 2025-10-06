@@ -1623,6 +1623,21 @@
             updateWordleGrid();
             saveGameState();
             
+            // If player reached 6 guesses, lock input and wait for opponent/server
+            if (gameState.guesses.length >= 6) {
+                const inputSection = document.querySelector('.input-section');
+                if (inputSection) inputSection.style.display = 'none';
+                if (gameState.timer) { clearInterval(gameState.timer); gameState.timer = null; }
+                const errorMessage = document.getElementById('errorMessage');
+                if (errorMessage) {
+                    errorMessage.style.display = 'block';
+                    errorMessage.style.color = '#FFA500';
+                    errorMessage.style.border = '1px solid #FFA500';
+                    errorMessage.style.background = 'rgba(255,165,0,0.1)';
+                    errorMessage.textContent = 'You used all guesses. Waiting for opponent...';
+                }
+            }
+            
             // Send guess to server; server decides wins/completion and broadcasts
             fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/guess`, {
                 method: 'POST',

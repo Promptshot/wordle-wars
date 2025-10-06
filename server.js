@@ -398,14 +398,17 @@ app.post('/api/games/:gameId/guess', (req, res) => {
     // Check if guess is correct
     if (guess.toUpperCase() === game.word) {
         game.playerResults[playerAddress] = 'win';
-        game.status = 'completed';
-        game.winner = playerAddress;
-        game.completedAt = Date.now();
-        
-        // Inform players that this player is finished
-        io.emit('playerDone', { gameId, player: playerAddress, result: 'win' });
-        // Broadcast game completion
-        io.emit('gameCompleted', game);
+        // If opponent already finished (any result), complete; else wait
+        const opponent = game.players.find(p => p !== playerAddress);
+        const oppDone = opponent && game.playerResults[opponent];
+        if (oppDone) {
+            game.status = 'completed';
+            game.winner = playerAddress;
+            game.completedAt = Date.now();
+            io.emit('gameCompleted', game);
+        } else {
+            io.emit('playerDone', { gameId, player: playerAddress, result: 'win' });
+        }
     } else if (game.guesses.filter(g => g.player === playerAddress).length >= 6) {
         game.playerResults[playerAddress] = 'out_of_guesses';
         
@@ -420,6 +423,11 @@ app.post('/api/games/:gameId/guess', (req, res) => {
         if (allPlayersDone) {
             game.status = 'completed';
             game.completedAt = Date.now();
+            // If exactly one win exists, set winner, else no winner -> both lost
+            const winnerEntry = Object.entries(game.playerResults).find(([, r]) => r === 'win');
+            if (winnerEntry) {
+                game.winner = winnerEntry[0];
+            }
             io.emit('gameCompleted', game);
         }
     }
