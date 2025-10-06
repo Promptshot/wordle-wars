@@ -887,12 +887,6 @@
         
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            // DebugNet flag from query or localStorage
-            try {
-                const params = new URLSearchParams(window.location.search);
-                if (params.get('debugNet') === '1') localStorage.setItem('ww_debugNet','1');
-                window.__WW_DEBUGNET = localStorage.getItem('ww_debugNet') === '1';
-            } catch(_) { window.__WW_DEBUGNET = false; }
 
             generateWordleGrid();
             loadGameState(); // Load any saved game state first
@@ -1368,31 +1362,9 @@
             if (socket) return; // prevent duplicate connections
             socket = io(SERVER_URL);
             
-            // Advanced connection diagnostics (toggle with ?debugNet=1)
-            const log = (...args) => { if (window.__WW_DEBUGNET) console.log('[Net]', ...args); };
-            const warn = (...args) => { if (window.__WW_DEBUGNET) console.warn('[Net]', ...args); };
-            const group = (title) => { if (window.__WW_DEBUGNET && console.groupCollapsed) console.groupCollapsed('[Net]', title); };
-            const groupEnd = () => { if (window.__WW_DEBUGNET && console.groupEnd) console.groupEnd(); };
-
-            try {
-                if (window.__WW_DEBUGNET) {
-                    group('Environment');
-                    log('Time:', new Date().toISOString());
-                    log('Location:', window.location.href);
-                    log('SERVER_URL:', SERVER_URL);
-                    log('navigator.onLine:', navigator.onLine);
-                    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-                    if (c) log('connection:', { effectiveType: c.effectiveType, downlink: c.downlink, rtt: c.rtt, saveData: c.saveData });
-                    groupEnd();
-                }
-                window.addEventListener('online', () => log('Browser online'));
-                window.addEventListener('offline', () => warn('Browser offline'));
-                document.addEventListener('visibilitychange', () => log('Visibility:', document.visibilityState));
-            } catch(_) {}
 
             socket.on('connect', () => {
                 // Connected to server - attempt to rejoin active game if exists
-                log('connect', { id: socket.id, transport: socket.io?.engine?.transport?.name });
                 // Clear any pending disconnect toast
                 if (typeof disconnectToastTimer !== 'undefined' && disconnectToastTimer) { clearTimeout(disconnectToastTimer); disconnectToastTimer = null; }
                 if (gameState.currentGame && gameState.walletAddress && !gameState.gameOver) {
@@ -1401,19 +1373,8 @@
             });
             
             socket.on('connect_error', (error) => {
-                warn('connect_error', { message: error?.message, name: error?.name, stack: error?.stack });
+                showError('Connection error. Please refresh the page.', 'lobby');
             });
-
-            // Socket.IO manager-level reconnection diagnostics
-            try {
-                socket.io.on('reconnect_attempt', (attempt) => log('reconnect_attempt', { attempt }));
-                socket.io.on('reconnect', (attempt) => log('reconnect success', { attempt }));
-                socket.io.on('reconnect_error', (error) => warn('reconnect_error', { message: error?.message }));
-                socket.io.on('reconnect_failed', () => warn('reconnect_failed'));
-                socket.io.on('error', (e) => warn('manager error', e));
-                socket.io.on('ping', () => log('manager ping'));
-                socket.io.on('pong', () => log('manager pong'));
-            } catch(_) {}
 
             socket.on('gameCreated', (game) => {
                 updateAvailableGames();
@@ -1491,7 +1452,6 @@
                     const input = document.getElementById('walletSearch');
                     if (input && input.value) {
                         const val = input.value.trim().toLowerCase();
-                        console.log('Searching for:', val);
                         let firstMatch = null;
                         Array.from(list.children).forEach((child, index) => {
                             child.classList.remove('wallet-highlight');
@@ -1508,33 +1468,21 @@
                             const matchesPrefix = displayPrefix.includes(val.substring(0,8));
                             const matchesDisplay = displayText.includes(val);
                             
-                            console.log(`Item ${index}:`, {
-                                displayText,
-                                displayPrefix,
-                                fullAddress,
-                                matchesFull,
-                                matchesPrefix,
-                                matchesDisplay
-                            });
-                            
                             if (matchesFull || matchesPrefix || matchesDisplay) {
                                 child.classList.add('wallet-highlight');
                                 if (!firstMatch) firstMatch = child;
                             }
                         });
                         if (firstMatch) {
-                            console.log('Found match, scrolling to it');
                             const childTop = firstMatch.offsetTop;
                             const targetTop = Math.max(childTop - (list.clientHeight - firstMatch.clientHeight) / 2, 0);
                             list.scrollTo({ top: targetTop, behavior: 'smooth' });
                             firstMatch.classList.add('wallet-flash');
                             setTimeout(() => firstMatch.classList.remove('wallet-flash'), 1000);
-                        } else {
-                            console.log('No matches found');
                         }
                     }
                 } catch(e) {
-                    console.error('Search error:', e);
+                    // Silent error handling
                 }
             }
 
@@ -1581,7 +1529,6 @@
             let lastDisconnectToast = 0;
             let disconnectToastTimer = null;
             socket.on('disconnect', (reason) => {
-                log('disconnect', { reason });
                 const now = Date.now();
                 // Suppress for intentional client disconnects
                 const mayShow = reason !== 'io client disconnect' && (now - lastDisconnectToast > 8000);
@@ -1603,24 +1550,6 @@
                 }, 3000);
             });
             
-            socket.on('connect_error', (error) => {
-                warn('socket connect_error', { message: error?.message });
-                showError('Connection error. Please refresh the page.', 'lobby');
-            });
-
-            // Lower-level transport diagnostics
-            try {
-                const eng = socket.io?.engine;
-                if (eng) {
-                    log('engine init', { transport: eng.transport?.name });
-                    eng.on('upgrade', (transport) => log('engine upgrade', { to: transport?.name }));
-                    eng.on('close', (reason) => warn('engine close', { reason }));
-                    // ping/pong timing
-                    eng.on('packet', (pkt) => {
-                        if (pkt?.type === 'ping' || pkt?.type === 'pong') log('engine', pkt.type);
-                    });
-                }
-            } catch(_) {}
         }
         
         // Active Game Management
@@ -1653,7 +1582,7 @@
                 if (response.ok) {
                     const game = await response.json();
                     gameState.currentGame = game;
-                    console.log('✅ Successfully rejoined game');
+                    // Successfully rejoined game
                     
                     // Show game room and start if playing
                     showGameRoom();
@@ -1662,14 +1591,14 @@
                     }
                 } else {
                     const error = await response.json();
-                    console.log('❌ Failed to rejoin game:', error.error);
+                    // Failed to rejoin game
                     // Clear the invalid game state
                     clearGameState();
                     showScreen('lobby');
                     showError('Could not rejoin game. Game may have ended.', 'lobby');
                 }
             } catch (error) {
-                console.log('❌ Rejoin request failed:', error);
+                // Rejoin request failed
                 // Clear the invalid game state
                 clearGameState();
                 showScreen('lobby');

@@ -169,7 +169,7 @@ const words = [
 // Routes
 app.get('/api/games', (req, res) => {
     const waitingGames = games.filter(g => g.status === 'waiting');
-    console.log(`📋 GET /api/games - Returning ${waitingGames.length} waiting games`);
+    // Returning waiting games
     res.json(waitingGames);
 });
 
@@ -185,12 +185,7 @@ app.get('/api/wallets', (req, res) => {
 // Debug endpoint to see all games (development only)
 if (NODE_ENV === 'development') {
     app.get('/api/debug/games', (req, res) => {
-        console.log(`🔍 DEBUG: All games (${games.length} total):`, games.map(g => ({
-            id: g.id,
-            status: g.status,
-            players: g.players,
-            wager: g.wager
-        })));
+        // Debug mode - showing all games
         res.json(games);
     });
 }
@@ -198,21 +193,21 @@ if (NODE_ENV === 'development') {
 app.post('/api/games', (req, res) => {
     const { wager, playerAddress } = req.body;
     
-    console.log(`🎮 Create game request: Wager ${wager}, Player ${playerAddress}`);
+    // Create game request
     
     // Input validation
     if (!wager || !playerAddress) {
-        console.log('❌ Missing required fields');
+        // Missing required fields
         return res.status(400).json({ error: 'Missing required fields' });
     }
     
     if (!validateWalletAddress(playerAddress)) {
-        console.log('❌ Invalid wallet address');
+        // Invalid wallet address
         return res.status(400).json({ error: 'Invalid wallet address' });
     }
     
     if (!validateWager(wager)) {
-        console.log('❌ Invalid wager amount');
+        // Invalid wager amount
         return res.status(400).json({ error: 'Invalid wager amount. Must be between 0.022 and 10 SOL' });
     }
     
@@ -223,13 +218,12 @@ app.post('/api/games', (req, res) => {
     );
     
     if (existingGame) {
-        console.log('❌ Player already has an active game:', existingGame.id);
+        // Player already has an active game
         return res.status(400).json({ error: 'You already have an active game' });
     }
     
     const gameId = 'game_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    // Force fixed word for testing
-    const word = 'MEMES';
+    const word = words[Math.floor(Math.random() * words.length)];
     
     const newGame = {
         id: gameId,
@@ -244,7 +238,7 @@ app.post('/api/games', (req, res) => {
     
     games.push(newGame);
     
-    console.log('✅ Game created successfully:', newGame.id);
+    // Game created successfully
     
     // Broadcast to all connected clients
     io.emit('gameCreated', newGame);
@@ -261,27 +255,27 @@ app.post('/api/games/:gameId/join', (req, res) => {
     const { gameId } = req.params;
     const { playerAddress } = req.body;
     
-    console.log(`👥 Join request: Game ${gameId}, Player ${playerAddress}`);
+    // Join request
     
     const game = games.find(g => g.id === gameId);
     if (!game) {
-        console.log('❌ Game not found');
+        // Game not found
         return res.status(404).json({ error: 'Game not found' });
     }
     
     if (game.status !== 'waiting') {
-        console.log('❌ Game not available, status:', game.status);
+        // Game not available
         return res.status(400).json({ error: 'Game is not available' });
     }
     
     if (game.players.length >= 2) {
-        console.log('❌ Game is full');
+        // Game is full
         return res.status(400).json({ error: 'Game is full' });
     }
     
     // Prevent joining your own game
     if (game.players.length > 0 && game.players[0] === playerAddress) {
-        console.log('❌ Cannot join own game');
+        // Cannot join own game
         return res.status(400).json({ error: 'You cannot join your own game' });
     }
     
@@ -293,11 +287,11 @@ app.post('/api/games/:gameId/join', (req, res) => {
     );
     
     if (playerInOtherGame) {
-        console.log('❌ Player already in another game:', playerInOtherGame.id);
+        // Player already in another game
         return res.status(400).json({ error: 'You are already in another game' });
     }
     
-    console.log('✅ Join validation passed, adding player to game');
+    // Join validation passed, adding player to game
     game.players.push(playerAddress);
     game.status = 'playing';
     game.startedAt = Date.now();
@@ -310,7 +304,7 @@ app.post('/api/games/:gameId/join', (req, res) => {
         io.emit('connectedWallets', Array.from(connectedWallets));
     } catch (e) {}
     
-    console.log('✅ Player joined game successfully');
+    // Player joined game successfully
     res.json(game);
 });
 
@@ -319,57 +313,52 @@ app.post('/api/games/:gameId/forfeit', (req, res) => {
     const { gameId } = req.params;
     const { playerAddress } = req.body;
     
-    console.log(`🔄 Forfeit request: Game ${gameId}, Player ${playerAddress}`);
+    // Forfeit request
     
     // Input validation
     if (!validateGameId(gameId)) {
-        console.log('❌ Invalid game ID format');
+        // Invalid game ID format
         return res.status(400).json({ error: 'Invalid game ID' });
     }
     
     if (!validateWalletAddress(playerAddress)) {
-        console.log('❌ Invalid wallet address');
+        // Invalid wallet address
         return res.status(400).json({ error: 'Invalid wallet address' });
     }
     
     const game = games.find(g => g.id === gameId);
     if (!game) {
-        console.log('❌ Game not found');
+        // Game not found
         return res.status(404).json({ error: 'Game not found' });
     }
     
     if (!game.players.includes(playerAddress)) {
-        console.log('❌ Player not in this game');
+        // Player not in this game
         return res.status(400).json({ error: 'Player not in this game' });
     }
     
-    console.log(`📋 Game before forfeit:`, game);
+    // Game before forfeit
     
     // Calculate forfeit penalty based on game state
     const isGameStarted = game.status === 'playing';
     const hasOtherPlayers = game.players.length > 1;
     const forfeitFee = isGameStarted || hasOtherPlayers ? 1.0 : 0.05; // 100% loss if game started, 5% fee if waiting
     
-    console.log(`💰 Forfeit calculation:`, {
-        isGameStarted,
-        hasOtherPlayers,
-        forfeitFee: forfeitFee * 100 + '%',
-        originalWager: game.wager
-    });
+    // Forfeit calculation
     
     // Remove player from game
     game.players = game.players.filter(p => p !== playerAddress);
     
     // If no players left, remove the game
     if (game.players.length === 0) {
-        console.log('🗑️ No players left, removing game completely');
+        // No players left, removing game completely
         games = games.filter(g => g.id !== gameId);
-        console.log(`📋 Games after removal:`, games.length, 'games remaining');
+        // Games after removal
         
         // Broadcast that the game was removed
         io.emit('gameRemoved', { gameId });
     } else {
-        console.log('⏳ One player left, setting status to waiting');
+        // One player left, setting status to waiting
         // If only one player left, set status back to waiting
         game.status = 'waiting';
         
@@ -388,7 +377,7 @@ app.post('/api/games/:gameId/forfeit', (req, res) => {
             'Game forfeited - 5% fee applied (95% refund)'
     });
     
-    console.log('✅ Forfeit completed successfully');
+    // Forfeit completed successfully
 });
 
 app.post('/api/games/:gameId/guess', (req, res) => {
@@ -492,7 +481,7 @@ app.post('/api/games/:gameId/rejoin', (req, res) => {
     const { gameId } = req.params;
     const { playerAddress } = req.body;
     
-    console.log(`🔄 Rejoin request: Game ${gameId}, Player ${playerAddress}`);
+    // Rejoin request
     
     // Input validation
     if (!validateGameId(gameId)) {
@@ -505,21 +494,21 @@ app.post('/api/games/:gameId/rejoin', (req, res) => {
     
     const game = games.find(g => g.id === gameId);
     if (!game) {
-        console.log('❌ Game not found for rejoin');
+        // Game not found for rejoin
         return res.status(404).json({ error: 'Game not found' });
     }
     
     if (!game.players.includes(playerAddress)) {
-        console.log('❌ Player not in this game');
+        // Player not in this game
         return res.status(403).json({ error: 'Player not in this game' });
     }
     
     if (game.status === 'completed') {
-        console.log('❌ Game already completed');
+        // Game already completed
         return res.status(400).json({ error: 'Game is already completed' });
     }
     
-    console.log('✅ Player rejoined game successfully');
+    // Player rejoined game successfully
     res.json(game);
 });
 
@@ -565,7 +554,7 @@ app.post('/api/games/:gameId/timeout', (req, res) => {
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
-    console.log('Player connected:', socket.id);
+    // Player connected
     // Send current wallet list to this socket immediately
     try {
         socket.emit('connectedWallets', Array.from(connectedWallets));
@@ -574,7 +563,7 @@ io.on('connection', (socket) => {
     
     socket.on('joinGame', (gameId) => {
         socket.join(gameId);
-        console.log(`Player ${socket.id} joined game ${gameId}`);
+        // Player joined game
     });
     
     socket.on('registerWallet', (walletAddress) => {
@@ -596,11 +585,11 @@ io.on('connection', (socket) => {
     
     socket.on('leaveGame', (gameId) => {
         socket.leave(gameId);
-        console.log(`Player ${socket.id} left game ${gameId}`);
+        // Player left game
     });
     
     socket.on('disconnect', () => {
-        console.log('Player disconnected:', socket.id);
+        // Player disconnected
         const addr = socketIdToWallet.get(socket.id);
         if (addr) {
             connectedWallets.delete(addr);
@@ -623,7 +612,7 @@ function cleanupStaleGames() {
     
     const removedCount = initialCount - games.length;
     if (removedCount > 0) {
-        console.log(`🧹 Cleaned up ${removedCount} stale games`);
+        // Cleaned up stale games
     }
 }
 
@@ -636,7 +625,7 @@ function validateGameStates() {
             const maxGameTime = 5 * 60 * 1000; // 5 minutes
             
             if (gameDuration > maxGameTime) {
-                console.log(`⏰ Game ${game.id} timed out, marking as completed`);
+                // Game timed out, marking as completed
                 game.status = 'completed';
                 game.completedAt = Date.now();
             }
@@ -644,13 +633,13 @@ function validateGameStates() {
         
         // Fix games with invalid player counts
         if (game.players.length > 2) {
-            console.log(`⚠️ Game ${game.id} has too many players: ${game.players.length}`);
+            // Game has too many players
             game.players = game.players.slice(0, 2);
         }
         
         // Fix games that should be waiting but have 2 players
         if (game.status === 'waiting' && game.players.length === 2) {
-            console.log(`⚠️ Game ${game.id} has 2 players but status is waiting, fixing...`);
+            // Game has 2 players but status is waiting, fixing
             game.status = 'playing';
             game.startedAt = Date.now();
         }
@@ -664,14 +653,7 @@ setInterval(cleanupStaleGames, 10 * 60 * 1000);
 setInterval(validateGameStates, 5 * 60 * 1000);
 
 server.listen(PORT, () => {
-    console.log(`🎮 Wordle Wars server running on port ${PORT}`);
-    console.log(`🌍 Environment: ${NODE_ENV}`);
-    if (NODE_ENV === 'development') {
-        console.log(`🌐 Frontend: http://localhost:8000/pump-style.html`);
-        console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
-    } else {
-        console.log(`🚀 Production server ready`);
-    }
+    // Wordle Wars server running
     
     // Clean up any stale games on startup
     cleanupStaleGames();
