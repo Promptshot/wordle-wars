@@ -167,6 +167,7 @@
         /* Main Content */
         .main-content {
             margin-left: 250px;
+            margin-right: 260px;
             min-height: 100vh;
             background: #1A1A1A;
         }
@@ -194,6 +195,36 @@
             gap: 20px;
             position: absolute;
             right: 40px;
+        }
+
+        /* Connected wallets panel */
+        .right-panel {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 260px;
+            height: 100vh;
+            background: #121212;
+            padding: 20px;
+            border-left: 1px solid #2A2A2A;
+            overflow-y: auto;
+        }
+        .panel-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #FFFFFF;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .wallet-item {
+            padding: 8px 10px;
+            background: #1A1A1A;
+            border: 1px solid #2A2A2A;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            color: #80FF80;
+            font-size: 12px;
+            word-break: break-all;
         }
 
         .wallet-info {
@@ -651,6 +682,12 @@
             </div>
         </div>
     </div>
+    
+    <!-- Right panel: connected wallets -->
+    <div class="right-panel">
+        <div class="panel-title">Connected Wallets</div>
+        <div id="walletsList"><div class="wallet-item">None</div></div>
+    </div>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -996,6 +1033,8 @@
                 
                 // Connect to server
                 connectToServer();
+                // Register wallet to backend list after socket connects
+                setTimeout(() => { if (socket) { try { socket.emit('registerWallet', publicKey); } catch(e){} } }, 300);
                 // Retry balance in background if initial fetch failed or returned 0
                 if (!Number.isFinite(solBalance) || solBalance === 0) {
                     retryFetchBalance(publicKey, 3);
@@ -1133,6 +1172,22 @@
                     errorMessage.style.background = 'rgba(255,165,0,0.1)';
                     errorMessage.textContent = 'Opponent finished. Waiting for final result...';
                 }
+            });
+
+            socket.on('connectedWallets', (wallets) => {
+                const list = document.getElementById('walletsList');
+                if (!list) return;
+                list.innerHTML = '';
+                if (!wallets || wallets.length === 0) {
+                    list.innerHTML = '<div class="wallet-item">None</div>';
+                    return;
+                }
+                wallets.forEach(w => {
+                    const item = document.createElement('div');
+                    item.className = 'wallet-item';
+                    item.textContent = w.slice(0, 8) + '...' + w.slice(-4);
+                    list.appendChild(item);
+                });
             });
             
             socket.on('gameCompleted', (game) => {
@@ -1761,21 +1816,20 @@
                     resultDiv.className = 'result lose';
                     break;
                 case 'timeout':
-                    titleElement.textContent = 'Time\'s Up!';
+                    titleElement.textContent = 'You Lost (Time)';
                     messageElement.innerHTML = `
                         Time ran out! The word was "${gameState.word}".<br>
-                        <strong>House wins: ${totalPot} SOL</strong> (entire pot)<br>
-                        <small>No one guessed correctly in time</small>
+                        <strong>You lost your wager: ${gameState.currentGame.wager} SOL</strong><br>
+                        <small>Returning to home...</small>
                     `;
                     resultDiv.className = 'result lose';
                     break;
                 case 'both_lost':
-                    titleElement.textContent = 'House Wins!';
+                    titleElement.textContent = 'Match Ended';
                     messageElement.innerHTML = `
-                        Both players ran out of tries!<br>
+                        Both players ran out of tries.<br>
                         The word was "${gameState.word}".<br>
-                        <strong>House wins: ${totalPot} SOL</strong> (entire pot)<br>
-                        <small>No one guessed correctly</small>
+                        <small>Returning to home...</small>
                     `;
                     resultDiv.className = 'result lose';
                     break;

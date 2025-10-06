@@ -103,6 +103,8 @@ function sanitizeString(str) {
 // In-memory storage (simple for MVP)
 let games = [];
 let players = new Map(); // socketId -> player info
+let socketIdToWallet = new Map();
+let connectedWallets = new Set();
 
 // Word list (same as frontend)
 const words = [
@@ -483,6 +485,23 @@ io.on('connection', (socket) => {
         console.log(`Player ${socket.id} joined game ${gameId}`);
     });
     
+    socket.on('registerWallet', (walletAddress) => {
+        if (typeof walletAddress === 'string') {
+            socketIdToWallet.set(socket.id, walletAddress);
+            connectedWallets.add(walletAddress);
+            io.emit('connectedWallets', Array.from(connectedWallets));
+        }
+    });
+    
+    socket.on('unregisterWallet', () => {
+        const addr = socketIdToWallet.get(socket.id);
+        if (addr) {
+            connectedWallets.delete(addr);
+            socketIdToWallet.delete(socket.id);
+            io.emit('connectedWallets', Array.from(connectedWallets));
+        }
+    });
+    
     socket.on('leaveGame', (gameId) => {
         socket.leave(gameId);
         console.log(`Player ${socket.id} left game ${gameId}`);
@@ -490,6 +509,12 @@ io.on('connection', (socket) => {
     
     socket.on('disconnect', () => {
         console.log('Player disconnected:', socket.id);
+        const addr = socketIdToWallet.get(socket.id);
+        if (addr) {
+            connectedWallets.delete(addr);
+            socketIdToWallet.delete(socket.id);
+            io.emit('connectedWallets', Array.from(connectedWallets));
+        }
     });
 });
 
