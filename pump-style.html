@@ -1093,6 +1093,9 @@
                             showGameRoom();
                             startGame();
                         }, 1500);
+                    } else if (gameState.currentScreen === 'gameRoom' && game.players.length === 2) {
+                        // Creator is already in the room; start immediately when second player joins
+                        startGame();
                     }
                 }
             });
@@ -1105,9 +1108,17 @@
             });
             
             socket.on('gameCompleted', (game) => {
-                if (game.id === gameState.currentGame?.id) {
-                    gameState.currentGame = game;
-                    endGame('completed');
+                if (game.id !== gameState.currentGame?.id) return;
+                gameState.currentGame = game;
+                // Determine local result relative to server winner when available
+                if (game.winner) {
+                    if (game.winner === gameState.walletAddress) {
+                        endGame('win');
+                    } else {
+                        endGame('lose');
+                    }
+                } else {
+                    endGame('both_lost');
                 }
             });
             
