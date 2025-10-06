@@ -1393,6 +1393,8 @@
             socket.on('connect', () => {
                 // Connected to server - attempt to rejoin active game if exists
                 log('connect', { id: socket.id, transport: socket.io?.engine?.transport?.name });
+                // Clear any pending disconnect toast
+                if (typeof disconnectToastTimer !== 'undefined' && disconnectToastTimer) { clearTimeout(disconnectToastTimer); disconnectToastTimer = null; }
                 if (gameState.currentGame && gameState.walletAddress && !gameState.gameOver) {
                     attemptRejoinGame();
                 }
@@ -1575,16 +1577,23 @@
                 try { if (typeof removeFromGameFeed === 'function') { removeFromGameFeed(data.gameId); } } catch (_) {}
             });
             
-            // Handle disconnections (throttled message)
+            // Handle disconnections (debounced user-facing toast)
             let lastDisconnectToast = 0;
+            let disconnectToastTimer = null;
             socket.on('disconnect', (reason) => {
                 log('disconnect', { reason });
                 const now = Date.now();
-                // Suppress user-facing toast for intentional client disconnects
-                const shouldToast = reason !== 'io client disconnect' && (now - lastDisconnectToast > 8000);
-                if (shouldToast) { // throttle to every 8s max
-                    showError('Connection lost. Attempting to reconnect...', 'lobby');
-                    lastDisconnectToast = now;
+                // Suppress for intentional client disconnects
+                const mayShow = reason !== 'io client disconnect' && (now - lastDisconnectToast > 8000);
+                // Debounce: only show if we fail to reconnect within 4s
+                if (mayShow) {
+                    if (disconnectToastTimer) clearTimeout(disconnectToastTimer);
+                    disconnectToastTimer = setTimeout(() => {
+                        if (!socket || socket.disconnected) {
+                            showError('Connection lost. Attempting to reconnect...', 'lobby');
+                            lastDisconnectToast = Date.now();
+                        }
+                    }, 4000);
                 }
                 // Attempt to reconnect after a delay
                 setTimeout(() => {
