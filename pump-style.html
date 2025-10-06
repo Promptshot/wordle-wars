@@ -1280,8 +1280,12 @@
             });
             
             socket.on('gameCompleted', (game) => {
-                if (game.id !== gameState.currentGame?.id) return;
+                // Always end if this client was in that game (even if state cleared)
+                const isThisGame = game.id === gameState.currentGame?.id || (gameState.currentGame && game.id === gameState.currentGame.id);
+                if (!isThisGame) return;
                 gameState.currentGame = game;
+                // Stop local timer if still running
+                if (gameState.timer) { clearInterval(gameState.timer); gameState.timer = null; }
                 // Determine local result relative to server winner when available
                 if (game.winner) {
                     if (game.winner === gameState.walletAddress) {
