@@ -479,6 +479,10 @@ app.post('/api/games/:gameId/timeout', (req, res) => {
 // WebSocket connection handling
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
+    // Send current wallet list to this socket immediately
+    try {
+        socket.emit('connectedWallets', Array.from(connectedWallets));
+    } catch (e) {}
     
     socket.on('joinGame', (gameId) => {
         socket.join(gameId);

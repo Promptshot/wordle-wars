@@ -225,7 +225,17 @@
             color: #80FF80;
             font-size: 12px;
             word-break: break-all;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+        .wallet-link {
+            color: #FFD700;
+            text-decoration: none;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        .wallet-link:hover { text-decoration: underline; }
 
         .wallet-info {
             display: flex;
@@ -1185,7 +1195,16 @@
                 wallets.forEach(w => {
                     const item = document.createElement('div');
                     item.className = 'wallet-item';
-                    item.textContent = w.slice(0, 8) + '...' + w.slice(-4);
+                    const left = document.createElement('span');
+                    left.textContent = w.slice(0, 8) + '...' + w.slice(-4);
+                    const link = document.createElement('a');
+                    link.href = `https://solscan.io/account/${w}`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'wallet-link';
+                    link.textContent = 'Solscan';
+                    item.appendChild(left);
+                    item.appendChild(link);
                     list.appendChild(item);
                 });
             });
