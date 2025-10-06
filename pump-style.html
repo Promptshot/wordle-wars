@@ -858,20 +858,16 @@
             checkWalletConnection(); // Check if wallet is already connected
             // Always connect socket so everyone sees connected wallets and game updates
             try { if (!socket) { connectToServer(); } } catch(e){}
-            // Fetch initial wallets list so the panel never shows empty
-            fetch(`${SERVER_URL}/api/wallets`).then(r=>r.json()).then((wallets)=>{
-                const list = document.getElementById('walletsList');
-                if (!list) return;
-                list.innerHTML='';
-                if (!wallets || wallets.length===0) { list.innerHTML = '<div class="wallet-item">None</div>'; return; }
-                wallets.forEach(w=>{
-                    const item=document.createElement('div');
-                    item.className='wallet-item';
-                    const left=document.createElement('span'); left.textContent = w.slice(0,8)+'...'+w.slice(-4);
-                    const link=document.createElement('a'); link.href=`https://solscan.io/account/${w}`; link.target='_blank'; link.rel='noopener noreferrer'; link.className='wallet-link'; link.textContent='Solscan';
-                    item.appendChild(left); item.appendChild(link); list.appendChild(item);
-                });
-            }).catch(()=>{});
+            // Initial connected wallets: use mocks if enabled, else fetch from server
+            if (window._mockWalletsEnabled && Array.isArray(window._mockWallets) && window._mockWallets.length) {
+                const merged = mergeWalletsWithUser(window._mockWallets);
+                renderConnectedWallets(merged);
+            } else {
+                fetch(`${SERVER_URL}/api/wallets`).then(r=>r.json()).then((wallets)=>{
+                    const finalList = mergeWalletsWithUser(wallets || []);
+                    renderConnectedWallets(finalList);
+                }).catch(()=>{});
+            }
             const search = document.getElementById('walletSearch');
             if (search) {
                 const performSearch = () => {
@@ -1058,9 +1054,18 @@
                     return s;
                 }
                 const mocks = Array.from({length:100}, ()=> fakeAddress());
-                renderConnectedWallets(mocks);
+                window._mockWalletsEnabled = true;
+                window._mockWallets = mocks;
             } catch(_) {}
         })();
+
+        function mergeWalletsWithUser(list) {
+            try {
+                const set = new Set(Array.isArray(list) ? list : []);
+                if (gameState.walletAddress) set.add(gameState.walletAddress);
+                return Array.from(set);
+            } catch(_) { return Array.isArray(list) ? list : []; }
+        }
         
         // Wallet Functions
         
@@ -1371,7 +1376,13 @@
             }
 
             socket.on('connectedWallets', (wallets) => {
-                renderConnectedWallets(wallets);
+                // If mocks are enabled, always render the mocks + current user
+                if (window._mockWalletsEnabled && Array.isArray(window._mockWallets)) {
+                    const merged = mergeWalletsWithUser(window._mockWallets);
+                    renderConnectedWallets(merged);
+                    return;
+                }
+                renderConnectedWallets(mergeWalletsWithUser(wallets || []));
             });
 
             socket.on('recentGames', (games) => {
