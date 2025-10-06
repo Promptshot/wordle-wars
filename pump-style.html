@@ -1143,6 +1143,7 @@
             
             socket.on('gameCreated', (game) => {
                 updateAvailableGames();
+                trackGameFeed(game);
             });
             
             socket.on('gameJoined', (game) => {
@@ -1165,6 +1166,7 @@
                         startGame();
                     }
                 }
+                trackGameFeed(game);
             });
             
             socket.on('guessSubmitted', (data) => {
@@ -1225,12 +1227,15 @@
                 } else {
                     endGame('both_lost');
                 }
+                // Track in sidebar feed
+                try { trackGameFeed(game); } catch (e) {}
             });
             
             // Listen for game removal
             socket.on('gameRemoved', (data) => {
                 // Immediately update available games when a game is removed
                 updateAvailableGames();
+                removeFromGameFeed(data.gameId);
             });
         }
         
@@ -2024,6 +2029,34 @@
         
         // Load saved game state on page load
         loadGameState();
+
+        // Ongoing/completed games feed helpers
+        const gameFeed = new Map();
+        function trackGameFeed(game) {
+            if (!game || !game.id) return;
+            gameFeed.set(game.id, { id: game.id, wager: game.wager, status: game.status });
+            const gamesList = document.getElementById('completedGamesList');
+            if (!gamesList) return;
+            // Re-render simple feed
+            gamesList.innerHTML = '';
+            const items = Array.from(gameFeed.values()).slice(-20);
+            if (items.length === 0) {
+                gamesList.innerHTML = '<div class="no-games">No completed games yet</div>';
+                return;
+            }
+            items.forEach(entry => {
+                const gameResult = document.createElement('div');
+                gameResult.className = 'game-result';
+                gameResult.innerHTML = `
+                    <img src="transparent.png" alt="Wordle Wars" class="game-result-icon">
+                    <div>
+                        <div class="game-amount">${entry.wager} SOL</div>
+                        <div style="color:#ccc;font-size:11px;">${entry.status}</div>
+                    </div>
+                `;
+                gamesList.insertBefore(gameResult, gamesList.firstChild);
+            });
+        }
 
         // Completed games management
         function addCompletedGame(winnerWallet, amount, isCurrentUser) {
