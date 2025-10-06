@@ -904,7 +904,6 @@
                     if (!list) return;
                     const val = search.value.trim().toLowerCase();
                     let firstMatch = null;
-                    const prefix = val.substring(0, 8);
 
                     Array.from(list.children).forEach(child => {
                         child.classList.remove('wallet-highlight');
@@ -916,17 +915,18 @@
                         const displayPrefix = displayText.substring(0, 8);
                         const fullAddress = (link?.href?.split('/')?.pop() || '').toLowerCase();
 
+                        // Multiple matching strategies
                         const matchesFull = fullAddress.includes(val);
-                        const matchesPrefix = prefix && displayPrefix.includes(prefix);
+                        const matchesPrefix = displayPrefix.includes(val.substring(0,8));
+                        const matchesDisplay = displayText.includes(val);
 
-                        if (matchesFull || matchesPrefix) {
+                        if (matchesFull || matchesPrefix || matchesDisplay) {
                             child.classList.add('wallet-highlight');
                             if (!firstMatch) firstMatch = child;
                         }
                     });
                     if (firstMatch) {
                         // Smoothly scroll the wallets list container to the match
-                        const listRect = list.getBoundingClientRect();
                         const childTop = firstMatch.offsetTop;
                         list.scrollTo({ top: Math.max(childTop - list.clientHeight / 3, 0), behavior: 'smooth' });
                     }
@@ -1403,28 +1403,48 @@
                     const input = document.getElementById('walletSearch');
                     if (input && input.value) {
                         const val = input.value.trim().toLowerCase();
+                        console.log('Searching for:', val);
                         let firstMatch = null;
-                        Array.from(list.children).forEach(child => {
+                        Array.from(list.children).forEach((child, index) => {
                             child.classList.remove('wallet-highlight');
                             const span = child.querySelector('span');
                             const link = child.querySelector('a');
                             const displayText = (span?.textContent || '').toLowerCase();
                             const displayPrefix = displayText.substring(0, 8);
                             const fullAddress = (link?.href?.split('/')?.pop() || '').toLowerCase();
+                            
                             if (!val) return;
+                            
+                            // Multiple matching strategies
                             const matchesFull = fullAddress.includes(val);
                             const matchesPrefix = displayPrefix.includes(val.substring(0,8));
-                            if (matchesFull || matchesPrefix) {
+                            const matchesDisplay = displayText.includes(val);
+                            
+                            console.log(`Item ${index}:`, {
+                                displayText,
+                                displayPrefix,
+                                fullAddress,
+                                matchesFull,
+                                matchesPrefix,
+                                matchesDisplay
+                            });
+                            
+                            if (matchesFull || matchesPrefix || matchesDisplay) {
                                 child.classList.add('wallet-highlight');
                                 if (!firstMatch) firstMatch = child;
                             }
                         });
                         if (firstMatch) {
+                            console.log('Found match, scrolling to it');
                             const childTop = firstMatch.offsetTop;
                             list.scrollTo({ top: Math.max(childTop - list.clientHeight / 3, 0), behavior: 'smooth' });
+                        } else {
+                            console.log('No matches found');
                         }
                     }
-                } catch(_) {}
+                } catch(e) {
+                    console.error('Search error:', e);
+                }
             }
 
             socket.on('connectedWallets', (wallets) => {
