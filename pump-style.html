@@ -896,11 +896,11 @@
             // Initial connected wallets: use mocks if enabled, else fetch from server
             if (window._mockWalletsEnabled && Array.isArray(window._mockWallets) && window._mockWallets.length) {
                 const merged = mergeWalletsWithUser(window._mockWallets);
-                renderConnectedWallets(merged);
+                window.renderConnectedWallets(merged);
             } else {
                 fetch(`${SERVER_URL}/api/wallets`).then(r=>r.json()).then((wallets)=>{
                     const finalList = mergeWalletsWithUser(wallets || []);
-                    renderConnectedWallets(finalList);
+                    window.renderConnectedWallets(finalList);
                 }).catch(()=>{});
             }
             const search = document.getElementById('walletSearch');
@@ -1111,6 +1111,66 @@
                 if (gameState.walletAddress) set.add(gameState.walletAddress);
                 return Array.from(set);
             } catch(_) { return Array.isArray(list) ? list : []; }
+        }
+
+        // Global renderer for connected wallets (used by both socket and initial load)
+        window.renderConnectedWallets = function(wallets) {
+            try {
+                console.log('[Wallets] render start. count=', Array.isArray(wallets) ? wallets.length : 'n/a');
+                const list = document.getElementById('walletsList');
+                if (!list) { console.warn('[Wallets] walletsList not found'); return; }
+                list.innerHTML = '';
+                if (!wallets || wallets.length === 0) {
+                    list.innerHTML = '<div class="wallet-item">None</div>';
+                    return;
+                }
+                wallets.forEach(w => {
+                    const item = document.createElement('div');
+                    item.className = 'wallet-item';
+                    const left = document.createElement('span');
+                    left.textContent = w.slice(0, 8) + '...' + w.slice(-4);
+                    const link = document.createElement('a');
+                    link.href = `https://solscan.io/account/${w}`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'wallet-link';
+                    link.textContent = 'Solscan';
+                    item.appendChild(left);
+                    item.appendChild(link);
+                    list.appendChild(item);
+                });
+
+                // Re-apply highlight and scroll after every render
+                const input = document.getElementById('walletSearch');
+                if (input && input.value) {
+                    const val = input.value.trim().toLowerCase();
+                    console.log('[Wallets] post-render search for:', val);
+                    let firstMatch = null;
+                    Array.from(list.children).forEach((child, index) => {
+                        child.classList.remove('wallet-highlight');
+                        const span = child.querySelector('span');
+                        const link = child.querySelector('a');
+                        const displayText = (span?.textContent || '').toLowerCase();
+                        const displayPrefix = displayText.substring(0, 8);
+                        const fullAddress = (link?.href?.split('/')?.pop() || '').toLowerCase();
+                        const matchesFull = fullAddress.includes(val);
+                        const matchesPrefix = displayPrefix.includes(val.substring(0,8));
+                        const matchesDisplay = displayText.includes(val);
+                        if (matchesFull || matchesPrefix || matchesDisplay) {
+                            child.classList.add('wallet-highlight');
+                            if (!firstMatch) firstMatch = child;
+                        }
+                    });
+                    if (firstMatch) {
+                        const childTop = firstMatch.offsetTop;
+                        const listEl = document.getElementById('walletsList');
+                        const targetTop = Math.max(childTop - (listEl.clientHeight - firstMatch.clientHeight) / 2, 0);
+                        listEl.scrollTo({ top: targetTop, behavior: 'smooth' });
+                        firstMatch.classList.add('wallet-flash');
+                        setTimeout(() => firstMatch.classList.remove('wallet-flash'), 1000);
+                    }
+                }
+            } catch (e) { console.error('[Wallets] render error', e); }
         }
         
         // Wallet Functions
@@ -1463,10 +1523,10 @@
                 // If mocks are enabled, always render the mocks + current user
                 if (window._mockWalletsEnabled && Array.isArray(window._mockWallets)) {
                     const merged = mergeWalletsWithUser(window._mockWallets);
-                    renderConnectedWallets(merged);
+                    window.renderConnectedWallets(merged);
                     return;
                 }
-                renderConnectedWallets(mergeWalletsWithUser(wallets || []));
+                window.renderConnectedWallets(mergeWalletsWithUser(wallets || []));
             });
 
             socket.on('recentGames', (games) => {
