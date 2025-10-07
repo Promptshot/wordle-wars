@@ -1515,8 +1515,9 @@
                     console.log('📝 Calling create_game via Anchor SDK...');
                     console.log('📝 Wager amount:', wagerLamports.toString(), 'lamports');
                     
-                    // Build transaction
-                    const tx = await program.methods
+                    // Use Anchor's .rpc() method - handles everything automatically
+                    // This prevents "already processed" errors by getting fresh blockhash each time
+                    signature = await program.methods
                         .createGame(wagerLamports)
                         .accounts({
                             creator: provider.publicKey,
@@ -1524,46 +1525,16 @@
                             escrowAccount: escrowKeypair.publicKey,
                             systemProgram: solanaWeb3.SystemProgram.programId,
                         })
-                        .transaction();
+                        .signers([gameKeypair, escrowKeypair])
+                        .rpc();
                     
-                    // Get fresh blockhash
-                    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-                    tx.recentBlockhash = blockhash;
-                    tx.feePayer = provider.publicKey;
-                    
-                    // Sign with all keypairs
-                    tx.partialSign(gameKeypair, escrowKeypair);
-                    
-                    // Sign with user wallet via Phantom
-                    const signedTx = await provider.signTransaction(tx);
-                    
-                    // Send
-                    signature = await connection.sendRawTransaction(signedTx.serialize());
-                    console.log('📤 Transaction sent:', signature);
-                    
-                    // Confirm and verify transaction succeeded
-                    try {
-                        const confirmation = await connection.confirmTransaction({
-                            signature,
-                            blockhash,
-                            lastValidBlockHeight
-                        }, 'confirmed');
-                        
-                        if (confirmation.value.err) {
-                            throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-                        }
-                        
-                        console.log('✅ Transaction confirmed and succeeded on-chain');
-                    } catch (confirmError) {
-                        console.error('❌ Transaction failed or confirmation error:', confirmError.message);
-                        throw confirmError; // Re-throw to trigger error handling
-                    }
+                    console.log('📤 Transaction sent and confirmed:', signature);
                     
                 } else if (type === 'join_game') {
                     console.log('📝 Calling join_game via Anchor SDK...');
                     
-                    // Build transaction  
-                    const tx = await program.methods
+                    // Use Anchor's .rpc() method - prevents "already processed" errors
+                    signature = await program.methods
                         .joinGame()
                         .accounts({
                             opponent: provider.publicKey,
@@ -1571,37 +1542,9 @@
                             escrowAccount: escrowKeypair.publicKey,
                             systemProgram: solanaWeb3.SystemProgram.programId,
                         })
-                        .transaction();
+                        .rpc();
                     
-                    // Get fresh blockhash
-                    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-                    tx.recentBlockhash = blockhash;
-                    tx.feePayer = provider.publicKey;
-                    
-                    // Sign with user wallet
-                    const signedTx = await provider.signTransaction(tx);
-                    
-                    // Send
-                    signature = await connection.sendRawTransaction(signedTx.serialize());
-                    console.log('📤 Transaction sent:', signature);
-                    
-                    // Confirm and verify transaction succeeded
-                    try {
-                        const confirmation = await connection.confirmTransaction({
-                            signature,
-                            blockhash,
-                            lastValidBlockHeight
-                        }, 'confirmed');
-                        
-                        if (confirmation.value.err) {
-                            throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-                        }
-                        
-                        console.log('✅ Transaction confirmed and succeeded on-chain');
-                    } catch (confirmError) {
-                        console.error('❌ Transaction failed or confirmation error:', confirmError.message);
-                        throw confirmError; // Re-throw to trigger error handling
-                    }
+                    console.log('📤 Transaction sent and confirmed:', signature);
                 }
                 
                 console.log('✅ Transaction confirmed:', signature);
