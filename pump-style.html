@@ -1199,6 +1199,25 @@
             }
         }
         
+        async function updateWalletBalance() {
+            if (!gameState.walletAddress) return;
+            
+            try {
+                const balance = await getWalletBalance(gameState.walletAddress);
+                gameState.balance = balance;
+                
+                // Update UI
+                const balanceElement = document.getElementById('walletBalance');
+                if (balanceElement) {
+                    balanceElement.textContent = balance.toFixed(4) + ' SOL';
+                }
+                
+                console.log('💰 Balance updated:', balance, 'SOL');
+            } catch (error) {
+                console.error('Failed to update balance:', error);
+            }
+        }
+        
         async function connectWallet() {
             try {
                 // Check if Phantom is installed
@@ -1558,6 +1577,9 @@
                 await connection.confirmTransaction(signature, 'confirmed');
                 console.log('✅ Transaction confirmed:', signature);
                 
+                // Update balance after successful transaction
+                setTimeout(() => updateWalletBalance(), 2000);
+                
                 return { 
                     success: true, 
                     signature: signature,
@@ -1749,11 +1771,17 @@
                 if (game.winner) {
                     if (game.winner === gameState.walletAddress) {
                         endGame('win');
+                        // Update balance after winning (give time for blockchain to settle)
+                        setTimeout(() => updateWalletBalance(), 3000);
                     } else {
                         endGame('lose');
+                        // Update balance after losing
+                        setTimeout(() => updateWalletBalance(), 3000);
                     }
                 } else {
                     endGame('both_lost');
+                    // Update balance
+                    setTimeout(() => updateWalletBalance(), 3000);
                 }
                 // Track in sidebar feed
                 try { trackGameFeed(game); } catch (e) {}
