@@ -1474,14 +1474,26 @@
                 let transaction;
                 
                 if (type === 'create_game') {
-                    // Build create_game instruction
+                    // Build create_game instruction using proper Anchor discriminator
                     console.log('📝 Building create_game instruction...');
                     
-                    // Instruction data: discriminator (8 bytes) + wager_amount (8 bytes as u64 little-endian)
-                    const discriminator = Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]); // create_game
-                    const wagerBuffer = Buffer.alloc(8);
-                    wagerBuffer.writeBigUInt64LE(BigInt(wagerLamports));
-                    const data = Buffer.concat([discriminator, wagerBuffer]);
+                    // Calculate discriminator: first 8 bytes of SHA256("global:create_game")
+                    const encoder = new TextEncoder();
+                    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode('global:create_game'));
+                    const discriminator = new Uint8Array(hashBuffer).slice(0, 8);
+                    
+                    // Encode wager_amount as u64 little-endian
+                    const wagerBuffer = new ArrayBuffer(8);
+                    const view = new DataView(wagerBuffer);
+                    view.setBigUint64(0, BigInt(wagerLamports), true); // true = little-endian
+                    
+                    // Combine discriminator + wager_amount
+                    const data = new Uint8Array(16);
+                    data.set(discriminator, 0);
+                    data.set(new Uint8Array(wagerBuffer), 8);
+                    
+                    console.log('🔍 Discriminator:', Array.from(discriminator));
+                    console.log('🔍 Data:', Array.from(data));
                     
                     // Create instruction
                     const instruction = new solanaWeb3.TransactionInstruction({
@@ -1492,7 +1504,7 @@
                             { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
                         ],
                         programId: programId,
-                        data: data
+                        data: Buffer.from(data)
                     });
                     
                     transaction = new solanaWeb3.Transaction().add(instruction);
@@ -1501,8 +1513,12 @@
                     // Build join_game instruction
                     console.log('📝 Building join_game instruction...');
                     
-                    // Instruction data: just discriminator (no additional data)
-                    const discriminator = Buffer.from([176, 43, 213, 31, 11, 56, 227, 15]); // join_game
+                    // Calculate discriminator: first 8 bytes of SHA256("global:join_game")
+                    const encoder = new TextEncoder();
+                    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode('global:join_game'));
+                    const discriminator = new Uint8Array(hashBuffer).slice(0, 8);
+                    
+                    console.log('🔍 Join discriminator:', Array.from(discriminator));
                     
                     // Create instruction
                     const instruction = new solanaWeb3.TransactionInstruction({
@@ -1513,7 +1529,7 @@
                             { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
                         ],
                         programId: programId,
-                        data: discriminator
+                        data: Buffer.from(discriminator)
                     });
                     
                     transaction = new solanaWeb3.Transaction().add(instruction);
