@@ -507,7 +507,7 @@ app.post('/api/airdrop', async (req, res) => {
 });
 
 // API to forfeit a game
-app.post('/api/games/:gameId/forfeit', (req, res) => {
+app.post('/api/games/:gameId/forfeit', async (req, res) => {
     const { gameId } = req.params;
     const { playerAddress } = req.body;
     
