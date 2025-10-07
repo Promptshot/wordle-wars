@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recover Stuck SOL - Wordle Wars</title>
+    <script src="/solana-bundle.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+        }
+        h1 { color: #00ff88; }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #00ff88;
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 16px;
+        }
+        button {
+            background: #00ff88;
+            color: #000;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00cc66;
+        }
+        .log {
+            background: #000;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #00ff88; }
+        .error { color: #ff4444; }
+        .info { color: #ffa500; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Recover Stuck SOL from Failed Games</h1>
+        <p>This tool will call <code>cancel_game</code> on the smart contract to recover your SOL from stuck escrow accounts.</p>
+        
+        <button onclick="connectWallet()">Connect Phantom Wallet</button>
+        
+        <div id="walletInfo" style="display:none; margin: 20px 0;">
+            <strong>Connected:</strong> <span id="walletAddress"></span>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>Enter Game Account Addresses (one per line):</h3>
+            <textarea id="gameAccounts" rows="5" placeholder="Game account public key
+Another game account
+..." style="width: 100%; padding: 10px; background: #1a1a1a; color: #fff; border: 1px solid #00ff88; border-radius: 5px;"></textarea>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>Enter Corresponding Escrow Account Addresses:</h3>
+            <textarea id="escrowAccounts" rows="5" placeholder="Escrow account public key
+Another escrow account
+..." style="width: 100%; padding: 10px; background: #1a1a1a; color: #fff; border: 1px solid #00ff88; border-radius: 5px;"></textarea>
+        </div>
+        
+        <button onclick="recoverAll()">Recover All SOL</button>
+        
+        <div class="log" id="log"></div>
+    </div>
+    
+    <script>
+        let provider = null;
+        let walletAddress = null;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const className = type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info');
+            logDiv.innerHTML += `<div class="${className}">${new Date().toLocaleTimeString()}: ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        async function connectWallet() {
+            try {
+                if ('phantom' in window) {
+                    provider = window.phantom.solana;
+                    if (provider.isPhantom) {
+                        const resp = await provider.connect();
+                        walletAddress = resp.publicKey.toString();
+                        document.getElementById('walletAddress').textContent = walletAddress;
+                        document.getElementById('walletInfo').style.display = 'block';
+                        log('✅ Wallet connected: ' + walletAddress, 'success');
+                    }
+                } else {
+                    log('❌ Phantom wallet not found', 'error');
+                }
+            } catch (err) {
+                log('❌ Failed to connect wallet: ' + err.message, 'error');
+            }
+        }
+        
+        async function recoverAll() {
+            if (!provider || !walletAddress) {
+                log('❌ Please connect your wallet first', 'error');
+                return;
+            }
+            
+            const gameAccountsText = document.getElementById('gameAccounts').value.trim();
+            const escrowAccountsText = document.getElementById('escrowAccounts').value.trim();
+            
+            if (!gameAccountsText || !escrowAccountsText) {
+                log('❌ Please enter both game and escrow account addresses', 'error');
+                return;
+            }
+            
+            const gameAccounts = gameAccountsText.split('\n').map(a => a.trim()).filter(a => a);
+            const escrowAccounts = escrowAccountsText.split('\n').map(a => a.trim()).filter(a => a);
+            
+            if (gameAccounts.length !== escrowAccounts.length) {
+                log('❌ Number of game accounts must match number of escrow accounts', 'error');
+                return;
+            }
+            
+            log(`🔄 Starting recovery for ${gameAccounts.length} account(s)...`, 'info');
+            
+            try {
+                const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
+                const wallet = {
+                    publicKey: provider.publicKey,
+                    signTransaction: (tx) => provider.signTransaction(tx),
+                    signAllTransactions: (txs) => provider.signAllTransactions(txs),
+                };
+                const anchorProvider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' });
+                
+                // Load IDL
+                const idlResponse = await fetch('/wordle-escrow-idl.json');
+                if (!idlResponse.ok) {
+                    throw new Error('Failed to load IDL file');
+                }
+                const idl = await idlResponse.json();
+                
+                const programId = new solanaWeb3.PublicKey('2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM');
+                const program = new anchor.Program(idl, programId, anchorProvider);
+                
+                let recovered = 0;
+                let failed = 0;
+                
+                for (let i = 0; i < gameAccounts.length; i++) {
+                    const gameAccount = gameAccounts[i];
+                    const escrowAccount = escrowAccounts[i];
+                    
+                    try {
+                        log(`\n🔍 [${i + 1}/${gameAccounts.length}] Processing...`, 'info');
+                        log(`   Game: ${gameAccount}`, 'info');
+                        log(`   Escrow: ${escrowAccount}`, 'info');
+                        
+                        const gameAccountPubkey = new solanaWeb3.PublicKey(gameAccount);
+                        const escrowAccountPubkey = new solanaWeb3.PublicKey(escrowAccount);
+                        
+                        // Check escrow balance
+                        const balance = await connection.getBalance(escrowAccountPubkey);
+                        const balanceSOL = (balance / 1e9).toFixed(6);
+                        log(`   Escrow balance: ${balanceSOL} SOL`, 'info');
+                        
+                        if (balance === 0) {
+                            log(`   ⚠️ Skipped (already empty)`, 'info');
+                            continue;
+                        }
+                        
+                        // Build cancel_game transaction
+                        log(`   📝 Calling cancel_game...`, 'info');
+                        const tx = await program.methods
+                            .cancelGame()
+                            .accounts({
+                                creator: provider.publicKey,
+                                gameAccount: gameAccountPubkey,
+                                escrowAccount: escrowAccountPubkey,
+                            })
+                            .transaction();
+                        
+                        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+                        tx.recentBlockhash = blockhash;
+                        tx.feePayer = provider.publicKey;
+                        
+                        const signedTx = await provider.signTransaction(tx);
+                        const signature = await connection.sendRawTransaction(signedTx.serialize());
+                        log(`   📤 Transaction sent: ${signature}`, 'info');
+                        
+                        await connection.confirmTransaction({
+                            signature,
+                            blockhash,
+                            lastValidBlockHeight
+                        }, 'confirmed');
+                        
+                        log(`   ✅ Recovered ${balanceSOL} SOL!`, 'success');
+                        recovered++;
+                        
+                    } catch (error) {
+                        log(`   ❌ Failed: ${error.message}`, 'error');
+                        failed++;
+                    }
+                }
+                
+                log(`\n${'='.repeat(50)}`, 'info');
+                log(`✅ Recovered: ${recovered}`, 'success');
+                log(`❌ Failed: ${failed}`, 'error');
+                log(`${'='.repeat(50)}`, 'info');
+                
+            } catch (error) {
+                log('❌ Recovery failed: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
+
