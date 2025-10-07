@@ -1944,19 +1944,26 @@
             
             try {
                 // Create game on server
+                const requestBody = {
+                    wager: wagerAmount,
+                    playerAddress: gameState.walletAddress
+                };
+                console.log('🔍 [DEBUG] Request body:', requestBody);
+                console.log('🔍 [DEBUG] Request URL:', `${SERVER_URL}/api/games`);
+                
                 const response = await fetch(`${SERVER_URL}/api/games`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        wager: wagerAmount,
-                        playerAddress: gameState.walletAddress
-                    })
+                    body: JSON.stringify(requestBody)
                 });
+                
+                console.log('🔍 [DEBUG] Response status:', response.status);
                 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    console.error('❌ [DEBUG] API Error:', errorData);
                     throw new Error(errorData.error || 'Failed to create game');
                 }
                 
