@@ -581,7 +581,7 @@ app.post('/api/games/:gameId/forfeit', async (req, res) => {
     }
 });
 
-app.post('/api/games/:gameId/guess', (req, res) => {
+app.post('/api/games/:gameId/guess', async (req, res) => {
     const { gameId } = req.params;
     const { playerAddress, guess } = req.body;
     
@@ -725,7 +725,7 @@ app.post('/api/games/:gameId/rejoin', (req, res) => {
     res.json(game);
 });
 
-app.post('/api/games/:gameId/timeout', (req, res) => {
+app.post('/api/games/:gameId/timeout', async (req, res) => {
     const { gameId } = req.params;
     const { playerAddress } = req.body;
 
