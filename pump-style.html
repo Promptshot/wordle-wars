@@ -1475,8 +1475,14 @@
                 };
                 const anchorProvider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' });
                 
-                // Load IDL (we need to fetch it or embed it)
-                const idl = await (await fetch('/wordle-escrow-idl.json')).json();
+                // Load IDL
+                console.log('📥 Fetching IDL...');
+                const idlResponse = await fetch('/wordle-escrow-idl.json');
+                if (!idlResponse.ok) {
+                    throw new Error('Failed to load IDL file');
+                }
+                const idl = await idlResponse.json();
+                console.log('✅ IDL loaded:', idl.name);
                 
                 // Create Anchor program instance
                 const programId = new solanaWeb3.PublicKey(escrowDetails.programId);
