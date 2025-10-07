@@ -175,25 +175,35 @@ class RealSolanaGameClient {
     }
 
     /**
-     * Settle game - distribute winnings
+     * Settle game - distribute winnings with fees
      */
-    async settleGame(winnerAddress, loserAddress, wagerAmount, escrowId) {
+    async settleGame(escrowDetails, players, winner, isForfeit, bothLost) {
         try {
-            console.log(`🏆 Settling game ${escrowId}: Winner ${winnerAddress} gets ${wagerAmount * 2} SOL`);
+            console.log(`🏆 Settling game on smart contract:`, {
+                winner: winner || 'house',
+                isForfeit,
+                bothLost,
+                players
+            });
             
-            // In a real implementation, this would:
-            // 1. Transfer 2x wager to winner
-            // 2. Close escrow account
-            // 3. Return rent to escrow creator
+            // In a real implementation, this would build and send a transaction
+            // calling the settle_game instruction on the smart contract
             
-            // For now, just simulate the settlement
-            const totalWinnings = wagerAmount * 2;
-            console.log(`✅ Game settled: ${winnerAddress} wins ${totalWinnings} SOL`);
+            // The smart contract would:
+            // 1. Calculate fees (2% or 5% or 100%)
+            // 2. Transfer fee to house wallet
+            // 3. Transfer remaining to winner
+            // 4. Update game account status
+            
+            // For now, we return success so the game completes
+            // The actual blockchain settlement will be implemented when we fix the transaction issues
+            
+            console.log(`✅ Game settlement logged (blockchain call pending implementation)`);
             
             return { 
-                success: true, 
-                winnerGets: totalWinnings,
-                message: `Game settled! Winner gets ${totalWinnings} SOL`
+                success: true,
+                signature: 'pending_implementation',
+                message: 'Game settled (blockchain pending)'
             };
         } catch (error) {
             console.error('❌ Game settlement failed:', error);
