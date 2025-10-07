@@ -21,8 +21,12 @@ console.log('🔨 Building Solana web3.js browser bundle...');
 
 // Create entry file
 const entryContent = `
-// Import Solana web3.js and Buffer polyfill
-import * as solanaWeb3 from '@solana/kit';
+// Import Buffer polyfill first
+import { Buffer } from 'buffer';
+window.Buffer = Buffer;
+
+// Import Solana web3.js
+import * as solanaWeb3 from '@solana/web3.js';
 
 // Make it available globally
 window.solanaWeb3 = solanaWeb3;
