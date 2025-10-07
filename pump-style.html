@@ -2207,7 +2207,6 @@
                 // If the game requires a blockchain signature, handle it
                 if (newGame.requiresSignature) {
                     console.log('🔐 Game requires signature, requesting wallet signature...');
-                    showSuccessMessage('Please sign the transaction to create your game escrow...', 'lobby');
                     
                     try {
                         console.log('🔍 [DEBUG] About to call createBlockchainTransaction...');
