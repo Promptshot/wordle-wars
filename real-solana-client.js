@@ -30,14 +30,10 @@ class RealSolanaGameClient {
         } else {
             // Generate a fixed keypair for development
             // This is a FIXED keypair that won't change (DO NOT use in production!)
-            const FIXED_DEV_SECRET = [
-                174, 47, 154, 16, 202, 193, 206, 113, 199, 190, 53, 133, 169, 175, 31, 56,
-                222, 53, 138, 189, 224, 216, 117, 173, 10, 149, 53, 133, 169, 175, 31, 56,
-                137, 224, 32, 90, 127, 234, 31, 137, 113, 123, 234, 90, 127, 21, 90, 234,
-                32, 90, 127, 234, 31, 137, 113, 123, 234, 90, 127, 21, 90, 234, 32, 90
-            ];
+            const FIXED_DEV_SECRET = [91,140,138,183,111,199,202,185,100,173,105,70,167,160,188,90,5,228,76,76,195,197,126,178,113,172,94,217,245,137,111,215,6,116,218,193,107,102,151,133,147,115,48,184,233,197,51,232,158,97,99,171,240,34,41,221,200,180,201,246,190,79,247,129];
             this.authorityKeypair = Keypair.fromSecretKey(new Uint8Array(FIXED_DEV_SECRET));
             console.log('⚠️  Using FIXED dev keypair (not for production!)');
+            console.log('💰 Backend wallet address: SCnzMT6eC5pDKPzrxurgEGRLQvKg5vopugt4pEBaokc');
         }
         
         console.log('🔗 REAL Solana client connected to devnet');
