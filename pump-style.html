@@ -1515,20 +1515,43 @@
                     console.log('📝 Calling create_game via Anchor SDK...');
                     console.log('📝 Wager amount:', wagerLamports.toString(), 'lamports');
                     
-                    // Use Anchor's .rpc() method - handles everything automatically
-                    // This prevents "already processed" errors by getting fresh blockhash each time
-                    signature = await program.methods
-                        .createGame(wagerLamports)
-                        .accounts({
-                            creator: provider.publicKey,
-                            gameAccount: gameKeypair.publicKey,
-                            escrowAccount: escrowKeypair.publicKey,
-                            systemProgram: solanaWeb3.SystemProgram.programId,
-                        })
-                        .signers([gameKeypair, escrowKeypair])
-                        .rpc();
-                    
-                    console.log('📤 Transaction sent and confirmed:', signature);
+                    try {
+                        // Use Anchor's .rpc() method - it handles everything
+                        signature = await program.methods
+                            .createGame(wagerLamports)
+                            .accounts({
+                                creator: provider.publicKey,
+                                gameAccount: gameKeypair.publicKey,
+                                escrowAccount: escrowKeypair.publicKey,
+                                systemProgram: solanaWeb3.SystemProgram.programId,
+                            })
+                            .signers([gameKeypair, escrowKeypair])
+                            .rpc();
+                        
+                        console.log('📤 Transaction sent and confirmed:', signature);
+                    } catch (rpcError) {
+                        // If we get "already processed" error, wait 1 second and retry ONCE
+                        if (rpcError.message && rpcError.message.includes('already been processed')) {
+                            console.warn('⚠️ Transaction already processed, waiting 1s and retrying...');
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            
+                            // Retry with fresh connection
+                            signature = await program.methods
+                                .createGame(wagerLamports)
+                                .accounts({
+                                    creator: provider.publicKey,
+                                    gameAccount: gameKeypair.publicKey,
+                                    escrowAccount: escrowKeypair.publicKey,
+                                    systemProgram: solanaWeb3.SystemProgram.programId,
+                                })
+                                .signers([gameKeypair, escrowKeypair])
+                                .rpc();
+                            
+                            console.log('✅ Retry successful:', signature);
+                        } else {
+                            throw rpcError;
+                        }
+                    }
                     
                 } else if (type === 'join_game') {
                     console.log('📝 Calling join_game via Anchor SDK...');
