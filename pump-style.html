@@ -1512,10 +1512,8 @@
                     console.log('📝 Calling create_game via Anchor SDK...');
                     console.log('📝 Wager amount:', wagerLamports.toString(), 'lamports');
                     
-                    // Wait a moment to ensure fresh blockhash
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    signature = await program.methods
+                    // Build transaction
+                    const tx = await program.methods
                         .createGame(wagerLamports)
                         .accounts({
                             creator: provider.publicKey,
@@ -1523,13 +1521,35 @@
                             escrowAccount: escrowKeypair.publicKey,
                             systemProgram: solanaWeb3.SystemProgram.programId,
                         })
-                        .signers([gameKeypair, escrowKeypair])
-                        .rpc({ skipPreflight: false });
+                        .transaction();
+                    
+                    // Get fresh blockhash
+                    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+                    tx.recentBlockhash = blockhash;
+                    tx.feePayer = provider.publicKey;
+                    
+                    // Sign with all keypairs
+                    tx.partialSign(gameKeypair, escrowKeypair);
+                    
+                    // Sign with user wallet via Phantom
+                    const signedTx = await provider.signTransaction(tx);
+                    
+                    // Send
+                    signature = await connection.sendRawTransaction(signedTx.serialize());
+                    console.log('📤 Transaction sent:', signature);
+                    
+                    // Confirm with timeout
+                    await connection.confirmTransaction({
+                        signature,
+                        blockhash,
+                        lastValidBlockHeight
+                    });
                     
                 } else if (type === 'join_game') {
                     console.log('📝 Calling join_game via Anchor SDK...');
                     
-                    signature = await program.methods
+                    // Build transaction  
+                    const tx = await program.methods
                         .joinGame()
                         .accounts({
                             opponent: provider.publicKey,
@@ -1537,7 +1557,26 @@
                             escrowAccount: escrowKeypair.publicKey,
                             systemProgram: solanaWeb3.SystemProgram.programId,
                         })
-                        .rpc();
+                        .transaction();
+                    
+                    // Get fresh blockhash
+                    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+                    tx.recentBlockhash = blockhash;
+                    tx.feePayer = provider.publicKey;
+                    
+                    // Sign with user wallet
+                    const signedTx = await provider.signTransaction(tx);
+                    
+                    // Send
+                    signature = await connection.sendRawTransaction(signedTx.serialize());
+                    console.log('📤 Transaction sent:', signature);
+                    
+                    // Confirm
+                    await connection.confirmTransaction({
+                        signature,
+                        blockhash,
+                        lastValidBlockHeight
+                    });
                 }
                 
                 console.log('✅ Transaction confirmed:', signature);
