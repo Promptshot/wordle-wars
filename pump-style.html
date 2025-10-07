@@ -773,15 +773,16 @@
     <div class="main-content">
         <!-- Header -->
         <div class="header">
-            <div class="header-title">Skill Based 1v1 Wagers. Winner Takes All.</div>
+            <div class="header-title" style="display: flex; align-items: center; gap: 20px;">
+                <img src="wwmain.png" alt="Wordle Wars" style="height: 60px;">
+                <span>WORDLE WARS</span>
+            </div>
             <div class="header-actions">
                 <div class="wallet-info">
                     <div class="wallet-address" id="walletAddress">Not Connected</div>
                     <div class="wallet-balance" id="walletBalance">0.0000 SOL</div>
                 </div>
                 <button class="btn btn-primary" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
-                <button class="btn btn-secondary" id="getDevnetSol" onclick="getDevnetSol()" style="display: none;">Get Devnet SOL</button>
-                
                 <button class="btn btn-secondary" id="disconnectBtn" onclick="disconnectWallet()" style="display: none;">Disconnect</button>
             </div>
         </div>
@@ -1323,10 +1324,6 @@
                     disconnectBtnEl.style.display = 'inline-block';
                 }
                 
-                const getDevnetSolBtn = document.getElementById('getDevnetSol');
-                if (getDevnetSolBtn) {
-                    getDevnetSolBtn.style.display = 'inline-block';
-                }
                 
                 
                 // Request notification permission
@@ -1417,10 +1414,6 @@
                     disconnectBtnEl.style.display = 'none';
                 }
                 
-                const getDevnetSolBtn = document.getElementById('getDevnetSol');
-                if (getDevnetSolBtn) {
-                    getDevnetSolBtn.style.display = 'none';
-                }
                 
                 
                 // Disconnect from server
