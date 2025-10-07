@@ -1982,6 +1982,15 @@
                             console.log('ℹ️ Game already cancelled or not in waiting state');
                             console.log('⚠️ Will still notify backend to clean up game state');
                             showSuccessMessage('Game was already cancelled. Cleaning up and returning to lobby...', 'gameRoom');
+                            
+                            // Update game feed
+                            if (gameState.currentGame) {
+                                trackGameFeed({ 
+                                    id: gameState.currentGame.id, 
+                                    wager: gameState.currentGame.wager, 
+                                    status: 'cancelled' 
+                                });
+                            }
                             // DON'T return here - continue to backend cleanup below!
                         } else {
                             // Other blockchain errors - show error but still try backend cleanup
@@ -2009,6 +2018,15 @@
                     if (response.ok) {
                         const data = await response.json();
                         console.log('✅ Backend notified:', data.message);
+                        
+                        // Update game feed with cancelled status
+                        if (gameState.currentGame) {
+                            trackGameFeed({ 
+                                id: gameState.currentGame.id, 
+                                wager: gameState.currentGame.wager, 
+                                status: 'cancelled' 
+                            });
+                        }
                         
                         // Clear game state FIRST before navigation
                         gameState.currentGame = null;
@@ -3036,11 +3054,42 @@
             items.forEach(entry => {
                 const gameResult = document.createElement('div');
                 gameResult.className = 'game-result';
+                
+                // Format status with icons and colors
+                let statusIcon = '●';
+                let statusColor = '#CCCCCC';
+                let statusText = entry.status.toUpperCase();
+                
+                switch(entry.status) {
+                    case 'waiting':
+                        statusIcon = '⏳';
+                        statusColor = '#FFA500';
+                        statusText = 'WAITING';
+                        break;
+                    case 'playing':
+                        statusIcon = '🎮';
+                        statusColor = '#00FF00';
+                        statusText = 'IN PROGRESS';
+                        break;
+                    case 'completed':
+                        statusIcon = '✅';
+                        statusColor = '#80FF80';
+                        statusText = 'COMPLETED';
+                        break;
+                    case 'cancelled':
+                        statusIcon = '❌';
+                        statusColor = '#FF4444';
+                        statusText = 'CANCELLED';
+                        break;
+                }
+                
                 gameResult.innerHTML = `
-                    <img src="transparent.png" alt="Wordle Wars" class="game-result-icon">
-                    <div>
-                        <div class="game-amount">${entry.wager} SOL</div>
-                        <div style="color:#ccc;font-size:11px;">${entry.status}</div>
+                    <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                        <div style="font-size: 24px;">${statusIcon}</div>
+                        <div style="flex: 1;">
+                            <div class="game-amount" style="font-size: 14px; font-weight: bold; color: #FFD700;">${entry.wager} SOL</div>
+                            <div style="color: ${statusColor}; font-size: 11px; margin-top: 2px;">${statusText}</div>
+                        </div>
                     </div>
                 `;
                 gamesList.insertBefore(gameResult, gamesList.firstChild);
