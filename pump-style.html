@@ -1512,6 +1512,9 @@
                     console.log('📝 Calling create_game via Anchor SDK...');
                     console.log('📝 Wager amount:', wagerLamports.toString(), 'lamports');
                     
+                    // Wait a moment to ensure fresh blockhash
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
                     signature = await program.methods
                         .createGame(wagerLamports)
                         .accounts({
@@ -1521,7 +1524,7 @@
                             systemProgram: solanaWeb3.SystemProgram.programId,
                         })
                         .signers([gameKeypair, escrowKeypair])
-                        .rpc();
+                        .rpc({ skipPreflight: false });
                     
                 } else if (type === 'join_game') {
                     console.log('📝 Calling join_game via Anchor SDK...');
