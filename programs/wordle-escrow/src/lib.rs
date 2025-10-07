@@ -109,10 +109,15 @@ pub mod wordle_escrow {
             // Both players lost - entire pot goes to house
             game_account.winner = Pubkey::default(); // No winner
             
-            **escrow_info.try_borrow_mut_lamports()? -= total_amount;
-            **house_info.try_borrow_mut_lamports()? += total_amount;
+            // Get rent-exempt minimum
+            let rent = Rent::get()?;
+            let min_rent = rent.minimum_balance(escrow_account.to_account_info().data_len());
+            let available_amount = total_amount.saturating_sub(min_rent);
             
-            msg!("Both players lost! House gets {} lamports", total_amount);
+            **escrow_info.try_borrow_mut_lamports()? -= available_amount;
+            **house_info.try_borrow_mut_lamports()? += available_amount;
+            
+            msg!("Both players lost! House gets {} lamports", available_amount);
         } else {
             // There's a winner
             require!(winner == game_account.players[0] || winner == game_account.players[1], ErrorCode::InvalidWinner);
@@ -131,13 +136,22 @@ pub mod wordle_escrow {
             };
             let winner_info = winner_account.to_account_info();
             
+            // Get rent-exempt minimum for escrow account
+            let rent = Rent::get()?;
+            let min_rent = rent.minimum_balance(escrow_account.to_account_info().data_len());
+            
+            // Ensure we leave minimum rent in escrow
+            let available_amount = total_amount.saturating_sub(min_rent);
+            let actual_fee = (available_amount * fee_bps) / 10000;
+            let actual_winner_amount = available_amount - actual_fee;
+            
             // Transfer fee to house
-            **escrow_info.try_borrow_mut_lamports()? -= fee_amount;
-            **house_info.try_borrow_mut_lamports()? += fee_amount;
+            **escrow_info.try_borrow_mut_lamports()? -= actual_fee;
+            **house_info.try_borrow_mut_lamports()? += actual_fee;
             
             // Transfer winnings to winner
-            **escrow_info.try_borrow_mut_lamports()? -= winner_amount;
-            **winner_info.try_borrow_mut_lamports()? += winner_amount;
+            **escrow_info.try_borrow_mut_lamports()? -= actual_winner_amount;
+            **winner_info.try_borrow_mut_lamports()? += actual_winner_amount;
             
             msg!("Game settled! Winner: {} gets {} lamports, House fee: {} lamports", winner, winner_amount, fee_amount);
         }
@@ -190,11 +204,16 @@ pub mod wordle_escrow {
         game_account.completed_at = Clock::get()?.unix_timestamp;
         
         let total_amount = escrow_account.total_amount;
-        let fee_amount = (total_amount * FORFEIT_FEE_BPS) / 10000; // 5% forfeit fee
-        let winner_amount = total_amount - fee_amount;
-        
         let escrow_info = ctx.accounts.escrow_account.to_account_info();
         let house_info = ctx.accounts.house_wallet.to_account_info();
+        
+        // Get rent-exempt minimum
+        let rent = Rent::get()?;
+        let min_rent = rent.minimum_balance(escrow_account.to_account_info().data_len());
+        let available_amount = total_amount.saturating_sub(min_rent);
+        
+        let fee_amount = (available_amount * FORFEIT_FEE_BPS) / 10000; // 5% forfeit fee
+        let winner_amount = available_amount - fee_amount;
         
         // Get winner account
         let winner_account = if winner == game_account.players[0] {
