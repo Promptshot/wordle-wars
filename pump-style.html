@@ -1308,7 +1308,7 @@
                 // Always show clear stuck game button when wallet is connected
                 const clearStuckGameBtn = document.getElementById('clearStuckGame');
                 if (clearStuckGameBtn) {
-                    clearStuckGameBtn.style.display = 'inline-block';
+                        clearStuckGameBtn.style.display = 'inline-block';
                 }
                 
                 // Connect to server
@@ -1925,203 +1925,213 @@
             forfeitBtn.textContent = 'Cancelling...';
             
             try {
-                // Check if wallet is connected
-                if (!gameState.walletAddress) {
+            // Check if wallet is connected
+            if (!gameState.walletAddress) {
                     showError('Please connect your wallet first to cancel the game.', 'gameRoom');
-                    return;
-                }
-            
-            const isGameWaiting = gameState.currentGame.status === 'waiting';
-            const isGamePlaying = gameState.currentGame.status === 'playing';
-            
-            // Block forfeit if game is actively playing
-            if (isGamePlaying) {
-                showError('Cannot forfeit once the game has started! You must finish playing.', 'gameRoom');
                 return;
             }
             
-            // For waiting games, call cancel_game on smart contract for full refund
-            if (isGameWaiting) {
-                const confirmMessage = `⚠️ CANCEL GAME ⚠️\n\nAre you sure you want to cancel this game?\n\n` +
-                    `You will receive a full refund of ${gameState.currentGame.wager} SOL\n` +
-                    `(100% refund - no fee for canceling before someone joins)\n\n` +
-                    `Click OK to cancel and get your refund.`;
-                
-                if (!confirm(confirmMessage)) {
+                const isGameWaiting = gameState.currentGame.status === 'waiting';
+                const isGamePlaying = gameState.currentGame.status === 'playing';
+            
+                // Block forfeit if game is actively playing
+                if (isGamePlaying) {
+                    showError('Cannot forfeit once the game has started! You must finish playing.', 'gameRoom');
                     return;
                 }
-                
-                try {
-                    console.log('🏳️ Calling cancel_game on smart contract...');
-                    
-                    // Check if we already processed this transaction recently
-                    const txKey = `${gameState.currentGame.id}_cancel`;
-                    if (recentTransactions.has(txKey)) {
-                        console.log('⚠️ Cancel transaction already processed recently, skipping...');
-                        showSuccessMessage('Game cancellation already processed. Your SOL should be refunded.', 'gameRoom');
-                        return;
-                    }
-                    
-                    // Call cancel_game via Anchor SDK
-                    const provider = getProvider();
-                    if (!provider || !provider.isConnected) {
-                        showError('Wallet not connected', 'gameRoom');
-                        return;
-                    }
-                    
-                    const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
-                    const wallet = {
-                        publicKey: provider.publicKey,
-                        signTransaction: (tx) => provider.signTransaction(tx),
-                        signAllTransactions: (txs) => provider.signAllTransactions(txs),
-                    };
-                    const anchorProvider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-                    
-                    // Load IDL
-                    const idlResponse = await fetch('/wordle-escrow-idl.json');
-                    if (!idlResponse.ok) {
-                        throw new Error('Failed to load IDL file');
-                    }
-                    const idl = await idlResponse.json();
-                    
-                    const programId = new solanaWeb3.PublicKey(gameState.currentGame.escrowDetails.programId);
-                    const program = new anchor.Program(idl, programId, anchorProvider);
-                    
-                    const gameKeypair = solanaWeb3.Keypair.fromSecretKey(
-                        new Uint8Array(gameState.currentGame.escrowDetails.gameKeypair.secretKey)
-                    );
-                    const escrowKeypair = solanaWeb3.Keypair.fromSecretKey(
-                        new Uint8Array(gameState.currentGame.escrowDetails.escrowKeypair.secretKey)
-                    );
-                    
-                    console.log('📝 Calling cancel_game...');
-                    console.log('   Creator:', provider.publicKey.toString());
-                    console.log('   Game Account:', gameKeypair.publicKey.toString());
-                    console.log('   Escrow Account:', escrowKeypair.publicKey.toString());
-                    
-                    // Build transaction
-                    const tx = await program.methods
-                        .cancelGame()
-                        .accounts({
-                            creator: provider.publicKey,
-                            gameAccount: gameKeypair.publicKey,
-                            escrowAccount: escrowKeypair.publicKey,
-                        })
-                        .transaction();
-                    
-                    // Get fresh blockhash
-                    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-                    tx.recentBlockhash = blockhash;
-                    tx.feePayer = provider.publicKey;
-                    
-                    // Sign with user wallet via Phantom
-                    const signedTx = await provider.signTransaction(tx);
-                    
-                    // Send
-                    const signature = await connection.sendRawTransaction(signedTx.serialize());
-                    console.log('📤 Cancel transaction sent:', signature);
-                    
-                    // Mark as processed
-                    recentTransactions.add(txKey);
-                    setTimeout(() => recentTransactions.delete(txKey), 30000); // Remove after 30 seconds
-                    
-                    // Confirm
-                    try {
-                        await connection.confirmTransaction({
-                            signature,
-                            blockhash,
-                            lastValidBlockHeight
-                        }, 'confirmed');
-                        console.log('✅ Cancel confirmed on-chain');
-                    } catch (confirmError) {
-                        console.warn('⚠️ Confirmation timeout (transaction likely still succeeded):', confirmError.message);
-                    }
-                    
-                    console.log('✅ Game cancelled on blockchain, refund issued:', signature);
-                    
-            } catch (cancelError) {
-                console.error('❌ Cancel transaction failed:', cancelError);
-                
-                // Check if it's a "GameNotWaiting" error (game already cancelled)
-                if (cancelError.message.includes('GameNotWaiting') || cancelError.message.includes('Game is not in waiting status')) {
-                    console.log('ℹ️ Game already cancelled or not in waiting state');
-                    showSuccessMessage('Game was already cancelled or is no longer waiting. Your SOL should be refunded.', 'gameRoom');
-                } else {
-                    showError('Failed to cancel game on blockchain: ' + cancelError.message, 'gameRoom');
-                }
+            
+                // For waiting games, call cancel_game on smart contract for full refund
+                if (isGameWaiting) {
+                    const confirmMessage = `⚠️ CANCEL GAME ⚠️\n\nAre you sure you want to cancel this game?\n\n` +
+                        `You will receive a full refund of ${gameState.currentGame.wager} SOL\n` +
+                        `(100% refund - no fee for canceling before someone joins)\n\n` +
+                        `Click OK to cancel and get your refund.`;
+            
+            if (!confirm(confirmMessage)) {
                 return;
-            }
             }
             
             try {
-                console.log('🏳️ Notifying backend to remove game...');
-                
-                // Call backend forfeit endpoint to remove the game from the list
-                const response = await fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/forfeit`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        playerAddress: gameState.walletAddress
-                    })
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('✅ Backend notified:', data.message);
-                    
-                    // Clear game state FIRST before navigation
-                    gameState.currentGame = null;
-                    gameState.gameOver = false;
-                    gameState.guesses = [];
-                    gameState.playerResult = null;
-                    gameState.opponentResult = null;
-                    gameState.word = '';
-                    
-                    // Clear timer
-                    if (gameState.timer) {
-                        clearInterval(gameState.timer);
-                        gameState.timer = null;
+                        console.log('🏳️ Calling cancel_game on smart contract...');
+                        
+                        // Check if we already processed this transaction recently
+                        const txKey = `${gameState.currentGame.id}_cancel`;
+                        if (recentTransactions.has(txKey)) {
+                            console.log('⚠️ Cancel transaction already processed recently, skipping...');
+                            showSuccessMessage('Game cancellation already processed. Your SOL should be refunded.', 'gameRoom');
+                            return;
+                        }
+                        
+                        // Call cancel_game via Anchor SDK
+                        const provider = getProvider();
+                        if (!provider || !provider.isConnected) {
+                            showError('Wallet not connected', 'gameRoom');
+                            return;
+                        }
+                        
+                        const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
+                        const wallet = {
+                            publicKey: provider.publicKey,
+                            signTransaction: (tx) => provider.signTransaction(tx),
+                            signAllTransactions: (txs) => provider.signAllTransactions(txs),
+                        };
+                        const anchorProvider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' });
+                        
+                        // Load IDL
+                        const idlResponse = await fetch('/wordle-escrow-idl.json');
+                        if (!idlResponse.ok) {
+                            throw new Error('Failed to load IDL file');
+                        }
+                        const idl = await idlResponse.json();
+                        
+                        const programId = new solanaWeb3.PublicKey(gameState.currentGame.escrowDetails.programId);
+                        const program = new anchor.Program(idl, programId, anchorProvider);
+                        
+                        const gameKeypair = solanaWeb3.Keypair.fromSecretKey(
+                            new Uint8Array(gameState.currentGame.escrowDetails.gameKeypair.secretKey)
+                        );
+                        const escrowKeypair = solanaWeb3.Keypair.fromSecretKey(
+                            new Uint8Array(gameState.currentGame.escrowDetails.escrowKeypair.secretKey)
+                        );
+                        
+                        console.log('📝 Calling cancel_game...');
+                        console.log('   Creator:', provider.publicKey.toString());
+                        console.log('   Game Account:', gameKeypair.publicKey.toString());
+                        console.log('   Escrow Account:', escrowKeypair.publicKey.toString());
+                        
+                        // Build transaction
+                        const tx = await program.methods
+                            .cancelGame()
+                            .accounts({
+                                creator: provider.publicKey,
+                                gameAccount: gameKeypair.publicKey,
+                                escrowAccount: escrowKeypair.publicKey,
+                            })
+                            .transaction();
+                        
+                        // Get fresh blockhash
+                        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+                        tx.recentBlockhash = blockhash;
+                        tx.feePayer = provider.publicKey;
+                        
+                        // Sign with user wallet via Phantom
+                        const signedTx = await provider.signTransaction(tx);
+                        
+                        // Send
+                        const signature = await connection.sendRawTransaction(signedTx.serialize());
+                        console.log('📤 Cancel transaction sent:', signature);
+                        
+                        // Mark as processed
+                        recentTransactions.add(txKey);
+                        setTimeout(() => recentTransactions.delete(txKey), 30000); // Remove after 30 seconds
+                        
+                        // Confirm
+                        try {
+                            await connection.confirmTransaction({
+                                signature,
+                                blockhash,
+                                lastValidBlockHeight
+                            }, 'confirmed');
+                            console.log('✅ Cancel confirmed on-chain');
+                        } catch (confirmError) {
+                            console.warn('⚠️ Confirmation timeout (transaction likely still succeeded):', confirmError.message);
+                        }
+                        
+                        console.log('✅ Game cancelled on blockchain, refund issued:', signature);
+                        
+                    } catch (cancelError) {
+                        console.error('❌ Cancel transaction failed:', cancelError);
+                        
+                        // Check if it's a "GameNotWaiting" error (game already cancelled)
+                        if (cancelError.message.includes('GameNotWaiting') || cancelError.message.includes('Game is not in waiting status')) {
+                            console.log('ℹ️ Game already cancelled or not in waiting state');
+                            showSuccessMessage('Game was already cancelled or is no longer waiting. Your SOL should be refunded.', 'gameRoom');
+                        } else {
+                            showError('Failed to cancel game on blockchain: ' + cancelError.message, 'gameRoom');
+                        }
+                        return;
                     }
-                    
-                    // Save state and return to lobby
-                    saveGameState();
-                    
-                    // Now return to lobby (after clearing game state)
-                    showScreen('lobby');
-                    updateAvailableGames();
-                    
-                    // Update balance
-                    setTimeout(() => updateWalletBalance(), 1000);
-                } else if (response.status === 404) {
-                    // Game not found on server (probably from previous session)
-                    
-                    // Clear game state since server doesn't have it
-                    gameState.currentGame = null;
-                    gameState.gameOver = false;
-                    gameState.guesses = [];
-                    gameState.playerResult = null;
-                    gameState.opponentResult = null;
-                    gameState.word = '';
-                    
-                    // Clear timer
-                    if (gameState.timer) {
-                        clearInterval(gameState.timer);
-                        gameState.timer = null;
-                    }
-                    
-                    // Save state and return to lobby
-                    saveGameState();
-                    
-                    // Return to lobby
-                    showScreen('lobby');
-                    updateAvailableGames();
-                } else {
-                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-                    showError(`Failed to forfeit game: ${errorData.error || 'Unknown error'}`, 'gameRoom');
                 }
-                
+            
+                try {
+                    console.log('🏳️ Notifying backend to remove game...');
+                    
+                    // Call backend forfeit endpoint to remove the game from the list
+                    const response = await fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/forfeit`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            playerAddress: gameState.walletAddress
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('✅ Backend notified:', data.message);
+                        
+                        // Clear game state FIRST before navigation
+                        gameState.currentGame = null;
+                        gameState.gameOver = false;
+                        gameState.guesses = [];
+                        gameState.playerResult = null;
+                        gameState.opponentResult = null;
+                        gameState.word = '';
+                        
+                        // Clear timer
+                        if (gameState.timer) {
+                            clearInterval(gameState.timer);
+                            gameState.timer = null;
+                        }
+                        
+                        // Save state and return to lobby
+                        saveGameState();
+                        
+                        // Now return to lobby (after clearing game state)
+                        showScreen('lobby');
+                        updateAvailableGames();
+                        
+                        // Update balance
+                        setTimeout(() => updateWalletBalance(), 1000);
+                    } else if (response.status === 404) {
+                        // Game not found on server (probably from previous session)
+                        
+                        // Clear game state since server doesn't have it
+                        gameState.currentGame = null;
+                        gameState.gameOver = false;
+                        gameState.guesses = [];
+                        gameState.playerResult = null;
+                        gameState.opponentResult = null;
+                        gameState.word = '';
+                        
+                        // Clear timer
+                        if (gameState.timer) {
+                            clearInterval(gameState.timer);
+                            gameState.timer = null;
+                        }
+                        
+                        // Save state and return to lobby
+                        saveGameState();
+                        
+                        // Return to lobby
+                        showScreen('lobby');
+                        updateAvailableGames();
+                    } else {
+                        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                        showError(`Failed to forfeit game: ${errorData.error || 'Unknown error'}`, 'gameRoom');
+                    }
+                    
+                } catch (error) {
+                    showError('Failed to forfeit game. Please try again.', 'lobby');
+                } finally {
+                    // Re-enable button
+                    const forfeitBtn = document.getElementById('forfeitGameBtn');
+                    if (forfeitBtn) {
+                        forfeitBtn.disabled = false;
+                        forfeitBtn.textContent = 'Cancel Game';
+                    }
+                }
             } catch (error) {
                 showError('Failed to forfeit game. Please try again.', 'lobby');
             } finally {
@@ -2421,30 +2431,30 @@
                         console.log('✅ Join confirmed:', confirmResult);
                         
                         const game = confirmResult.game;
-                        
-                        // Update game state
-                        gameState.currentGame = game;
-                        gameState.isPlayer1 = false;
-                        gameState.word = game.word;
-                        gameState.gameOver = false;
-                        gameState.guesses = [];
-                        gameState.playerResult = null;
-                        gameState.opponentResult = null;
-                        gameState.timeLeft = 300;
-                        
-                        // Clear any existing timer
-                        if (gameState.timer) {
-                            clearInterval(gameState.timer);
-                            gameState.timer = null;
-                        }
+                
+                // Update game state
+                gameState.currentGame = game;
+                gameState.isPlayer1 = false;
+                gameState.word = game.word;
+                gameState.gameOver = false;
+                gameState.guesses = [];
+                gameState.playerResult = null;
+                gameState.opponentResult = null;
+                gameState.timeLeft = 300;
+                
+                // Clear any existing timer
+                if (gameState.timer) {
+                    clearInterval(gameState.timer);
+                    gameState.timer = null;
+                }
                         
                         showSuccessMessage('Blockchain transaction signed! Joined game successfully!', 'lobby');
-                        
-                        // Automatically show game room when joining
-                        showGameRoom();
-                        startGame();
-                        saveGameState();
-                        checkActiveGame();
+                
+                // Automatically show game room when joining
+                showGameRoom();
+                startGame();
+                saveGameState();
+                checkActiveGame();
                         
                     } catch (error) {
                         console.error('❌ Error in join blockchain transaction:', error);
