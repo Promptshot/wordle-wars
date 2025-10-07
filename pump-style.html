@@ -1935,7 +1935,7 @@
                     throw new Error(errorData.error || 'Failed to create game');
                 }
                 
-                const newGame = await response.json();
+                let newGame = await response.json();
                 
                 console.log('🎮 Game created response:', newGame);
                 console.log('🔍 requiresSignature:', newGame.requiresSignature);
