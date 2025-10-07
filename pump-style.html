@@ -1541,6 +1541,31 @@
                 trackGameFeed(game);
             });
             
+            socket.on('gameStarted', (game) => {
+                console.log('🎮 Game started event received:', game);
+                
+                // Update game state for Player 1 when Player 2 joins
+                if (game.id === gameState.currentGame?.id) {
+                    gameState.currentGame = game;
+                    gameState.currentGame.status = 'playing';
+                    updateGameInfo();
+                    
+                    // If we're Player 1 waiting in lobby, show notification and start game
+                    if (gameState.currentScreen === 'lobby' && game.players.length === 2) {
+                        showSuccessMessage('🎉 Opponent joined! Game starting now...', 'lobby');
+                        
+                        setTimeout(() => {
+                            showGameRoom();
+                            startGame();
+                            saveGameState();
+                        }, 1500);
+                    } else if (gameState.currentScreen === 'gameRoom') {
+                        // Already in room, just start
+                        startGame();
+                    }
+                }
+            });
+            
             socket.on('guessSubmitted', (data) => {
                 if (data.gameId === gameState.currentGame?.id) {
                     // Update game state with new guess
