@@ -1501,10 +1501,16 @@
                 console.log('🔍 Game Account:', gameKeypair.publicKey.toString());
                 console.log('🔍 Escrow Account:', escrowKeypair.publicKey.toString());
                 
+                // Verify keypairs are valid
+                if (!gameKeypair || !escrowKeypair) {
+                    throw new Error('Invalid keypairs from server');
+                }
+                
                 let signature;
                 
                 if (type === 'create_game') {
                     console.log('📝 Calling create_game via Anchor SDK...');
+                    console.log('📝 Wager amount:', wagerLamports.toString(), 'lamports');
                     
                     signature = await program.methods
                         .createGame(wagerLamports)
@@ -1544,6 +1550,17 @@
                 
             } catch (error) {
                 console.error('❌ Transaction failed:', error);
+                console.error('❌ Error details:', {
+                    message: error.message,
+                    logs: error.logs,
+                    stack: error.stack
+                });
+                
+                // Try to get more details from SendTransactionError
+                if (error.logs) {
+                    console.error('📋 Transaction logs:', error.logs);
+                }
+                
                 return { 
                     success: false, 
                     error: error.message 
