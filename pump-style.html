@@ -1989,9 +1989,9 @@
                         
                         if (!txResult.success) {
                             console.error('❌ [DEBUG] Transaction failed:', txResult.error);
-                            // Notify server that blockchain transaction failed (no game to remove)
+                            // Notify server that blockchain transaction failed
                             try {
-                                await fetch(`/api/games/${newGame.escrowDetails.gameId}/confirm-blockchain`, {
+                                await fetch(`/api/games/${newGame.id}/confirm-blockchain`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ success: false, error: txResult.error })
@@ -2002,32 +2002,30 @@
                             throw new Error('Blockchain transaction failed: ' + txResult.error);
                         }
                         
-                        // Notify server that blockchain transaction was successful and CREATE the game
+                        // Notify server that blockchain transaction was successful
                         try {
-                            const confirmResponse = await fetch(`/api/games/${newGame.escrowDetails.gameId}/confirm-blockchain`, {
+                            const confirmResponse = await fetch(`/api/games/${newGame.id}/confirm-blockchain`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ 
                                     success: true, 
-                                    signature: txResult.signature,
-                                    escrowDetails: newGame.escrowDetails,
-                                    playerAddress: gameState.walletAddress
+                                    signature: txResult.signature
                                 })
                             });
                             
                             if (!confirmResponse.ok) {
                                 console.error('Failed to confirm blockchain transaction with server');
-                                throw new Error('Failed to create game after blockchain transaction');
+                                throw new Error('Failed to confirm blockchain transaction');
                             }
                             
                             const confirmResult = await confirmResponse.json();
-                            console.log('✅ Game created after blockchain confirmation:', confirmResult);
+                            console.log('✅ Blockchain transaction confirmed:', confirmResult);
                             
-                            // Update the game state with the actual created game
+                            // Update the game state with the confirmed game
                             newGame = confirmResult.game;
                         } catch (e) {
                             console.error('Failed to notify server of blockchain success:', e);
-                            throw new Error('Failed to create game after blockchain transaction: ' + e.message);
+                            throw new Error('Failed to confirm blockchain transaction: ' + e.message);
                         }
                         
                         showMessage('Blockchain transaction signed! Game created successfully!', 'success');
