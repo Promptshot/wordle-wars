@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wordle Wars - Skill Based 1v1 Wagers</title>
+    <title>Wordle Wars - Blockchain Word Battle Game</title>
     <link rel="icon" type="image/png" href="transparent.png">
     
     <!-- Solana web3.js Browser Bundle (locally built with all dependencies) -->
@@ -737,8 +737,14 @@
 
     <!-- Sidebar -->
     <div class="sidebar">
-        <div class="logo" onclick="showScreen('lobby')">
-            <img src="logowithtext.png" alt="Wordle Wars" class="logo-image">
+        <div class="logo" onclick="showScreen('lobby')" style="cursor: pointer;">
+            <img src="logowithtext.png" alt="Wordle Wars" class="logo-image" style="width: 100%; max-width: 200px;">
+        </div>
+        
+        <!-- Navigation Menu -->
+        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn btn-secondary" onclick="showScreen('about')" style="width: 100%;">About</button>
+            <button class="btn btn-secondary" disabled style="width: 100%; opacity: 0.5; cursor: not-allowed;">Rock Paper Scissors - Coming Soon</button>
         </div>
         
         <!-- Completed Games Section -->
@@ -862,6 +868,48 @@
                 
                 <div style="text-align: center; margin-top: 30px;">
                     <button class="btn btn-danger" onclick="forfeitGame()" id="forfeitGameBtn">Forfeit Game</button>
+                </div>
+            </div>
+
+            <!-- About Page -->
+            <div class="game-section hidden" id="about">
+                <div style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
+                    <h2 class="section-title" style="text-align: center; margin-bottom: 30px;">About Wordle Wars</h2>
+                    
+                    <div style="background: rgba(255,255,255,0.05); padding: 30px; border-radius: 12px; border: 1px solid #404040;">
+                        <h3 style="color: #80FF80; margin-bottom: 15px;">What is Wordle Wars?</h3>
+                        <p style="color: #CCCCCC; line-height: 1.8; margin-bottom: 20px;">
+                            Wordle Wars is a competitive word-guessing game built on the Solana blockchain. 
+                            Challenge other players to real-money wager matches and prove your word skills.
+                        </p>
+                        
+                        <h3 style="color: #80FF80; margin-bottom: 15px; margin-top: 30px;">How It Works</h3>
+                        <ul style="color: #CCCCCC; line-height: 2; margin-bottom: 20px;">
+                            <li><strong style="color: #FFD700;">Create a Game:</strong> Set your wager (minimum 0.022 SOL) and wait for an opponent</li>
+                            <li><strong style="color: #FFD700;">Join a Game:</strong> Browse available games and join one that matches your stakes</li>
+                            <li><strong style="color: #FFD700;">Compete:</strong> You have 6 guesses to find the secret 5-letter word before your opponent</li>
+                            <li><strong style="color: #FFD700;">Win:</strong> First to guess correctly wins the pot (minus 2% platform fee)</li>
+                        </ul>
+                        
+                        <h3 style="color: #80FF80; margin-bottom: 15px; margin-top: 30px;">Smart Contract Features</h3>
+                        <ul style="color: #CCCCCC; line-height: 2; margin-bottom: 20px;">
+                            <li>100% on-chain escrow - your funds are always secure</li>
+                            <li>Cancel before opponent joins - get full refund (0% fee)</li>
+                            <li>Winner takes 98% of pot (2% platform fee)</li>
+                            <li>Forfeit penalty: 5% fee if you quit after game starts</li>
+                            <li>Both lose: pot goes to platform wallet</li>
+                        </ul>
+                        
+                        <h3 style="color: #80FF80; margin-bottom: 15px; margin-top: 30px;">Built On Solana</h3>
+                        <p style="color: #CCCCCC; line-height: 1.8; margin-bottom: 20px;">
+                            Powered by Solana's fast, low-cost blockchain. All wagers are held in a secure 
+                            Anchor smart contract and distributed automatically when games complete.
+                        </p>
+                        
+                        <div style="text-align: center; margin-top: 40px;">
+                            <button class="btn btn-primary" onclick="showScreen('lobby')" style="padding: 15px 40px;">Start Playing</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1325,6 +1373,16 @@
                         clearStuckGameBtn.style.display = 'inline-block';
                 }
                 
+                // Request notification permission
+                if ('Notification' in window && Notification.permission === 'default') {
+                    try {
+                        await Notification.requestPermission();
+                        console.log('Notification permission:', Notification.permission);
+                    } catch (e) {
+                        console.log('Notification permission request failed:', e);
+                    }
+                }
+                
                 // Connect to server
                 connectToServer();
                 // Register wallet to backend list after socket connects
@@ -1647,9 +1705,25 @@
                     gameState.currentGame.status = 'playing';
                     updateGameInfo();
                     
+                    // Show browser notification
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification('Wordle Wars', {
+                            body: 'Opponent joined! Your game is starting now.',
+                            icon: '/logowithtext.png',
+                            badge: '/transparent.png'
+                        });
+                    }
+                    
+                    // Play sound notification (optional)
+                    try {
+                        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PVqzn77BdGAg+ltryxHIkBSyBzvLYiTcIGWi77eefTRAMUKfj8LZjHAY4ktfyzHksBSR3x/DdkEAKFF606+uoVRQKRp/g8r5sIQUxh9Hz04IzBh5uwO/jmUgND1as5++wXRgIPpba8sRyJAUsQc7y2Ik3CBlou+3nn00QDFC'); 
+                        audio.volume = 0.3;
+                        audio.play().catch(() => {});
+                    } catch (e) {}
+                    
                     // If we're Player 1 waiting in lobby, show notification and start game
                     if (gameState.currentScreen === 'lobby' && game.players.length === 2) {
-                        showSuccessMessage('🎉 Opponent joined! Game starting now...', 'lobby');
+                        showSuccessMessage('Opponent joined! Game starting now...', 'lobby');
                         
                         setTimeout(() => {
                             showGameRoom();
