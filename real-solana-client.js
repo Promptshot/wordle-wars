@@ -19,21 +19,19 @@ class RealSolanaGameClient {
         this.programId = new PublicKey('2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM');
         
         // Backend authority keypair for settlement
-        // Use a fixed keypair (in production, load from environment variable)
-        const FIXED_SECRET_KEY = process.env.BACKEND_AUTHORITY_SECRET_KEY;
+        // SECURITY: MUST use environment variable in production
+        const BACKEND_SECRET_KEY = process.env.BACKEND_AUTHORITY_SECRET_KEY;
         
-        if (FIXED_SECRET_KEY) {
-            // Load from environment variable
-            const secretKeyArray = JSON.parse(FIXED_SECRET_KEY);
+        if (!BACKEND_SECRET_KEY) {
+            throw new Error('❌ CRITICAL: BACKEND_AUTHORITY_SECRET_KEY environment variable not set! Cannot start server without backend wallet.');
+        }
+        
+        try {
+            const secretKeyArray = JSON.parse(BACKEND_SECRET_KEY);
             this.authorityKeypair = Keypair.fromSecretKey(new Uint8Array(secretKeyArray));
-            console.log('🔑 Backend Authority loaded from environment');
-        } else {
-            // Generate a fixed keypair for development
-            // This is a FIXED keypair that won't change (DO NOT use in production!)
-            const FIXED_DEV_SECRET = [91,140,138,183,111,199,202,185,100,173,105,70,167,160,188,90,5,228,76,76,195,197,126,178,113,172,94,217,245,137,111,215,6,116,218,193,107,102,151,133,147,115,48,184,233,197,51,232,158,97,99,171,240,34,41,221,200,180,201,246,190,79,247,129];
-            this.authorityKeypair = Keypair.fromSecretKey(new Uint8Array(FIXED_DEV_SECRET));
-            console.log('⚠️  Using FIXED dev keypair (not for production!)');
-            console.log('💰 Backend wallet address: SCnzMT6eC5pDKPzrxurgEGRLQvKg5vopugt4pEBaokc');
+            console.log('✅ Backend Authority loaded from environment');
+        } catch (error) {
+            throw new Error(`❌ CRITICAL: Invalid BACKEND_AUTHORITY_SECRET_KEY format: ${error.message}`);
         }
         
         console.log('🔗 REAL Solana client connected to devnet');
@@ -208,6 +206,17 @@ class RealSolanaGameClient {
                 escrowDetails
             });
             
+            // Check backend wallet has enough SOL for transaction fees
+            const backendBalance = await this.getBalance(this.authorityKeypair.publicKey.toString());
+            if (backendBalance < 0.001) { // Need at least 0.001 SOL for fees
+                console.error(`❌ Backend wallet has insufficient balance: ${backendBalance} SOL`);
+                return { 
+                    success: false, 
+                    error: `Backend wallet needs funding. Current balance: ${backendBalance} SOL` 
+                };
+            }
+            console.log(`✅ Backend wallet balance: ${backendBalance} SOL`);
+            
             const { AnchorProvider, Program, Wallet } = require('@coral-xyz/anchor');
             
             // Create backend wallet from authority keypair
@@ -285,53 +294,20 @@ class RealSolanaGameClient {
     }
 
     /**
-     * Cancel game - refund creator (only for waiting games)
+     * Cancel game - NOTE: Cancellation happens on-chain via frontend
+     * Backend only removes game from active list
+     * The creator must sign the cancel_game transaction in their wallet
      */
     async cancelGame(escrowDetails, creatorAddress) {
-        try {
-            console.log(`❌ Cancelling game on smart contract, refunding creator`);
-            console.log('   Game Account:', escrowDetails.gameAccount);
-            console.log('   Escrow Account:', escrowDetails.escrowAccount);
-            console.log('   Creator:', creatorAddress);
-            
-            const { AnchorProvider, Program, Wallet } = require('@coral-xyz/anchor');
-            
-            // Create backend wallet from authority keypair
-            const backendWallet = new Wallet(this.authorityKeypair);
-            
-            const provider = new AnchorProvider(
-                this.connection,
-                backendWallet,
-                { commitment: 'confirmed' }
-            );
-            
-            const program = new Program(idl, this.programId, provider);
-            
-            // Get account public keys
-            const gameAccount = new PublicKey(escrowDetails.gameAccount);
-            const escrowAccount = new PublicKey(escrowDetails.escrowAccount);
-            const creatorPubkey = new PublicKey(creatorAddress);
-            
-            console.log('📝 Calling cancel_game on smart contract...');
-            
-            // Build transaction - cancel_game requires creator to sign
-            // But we can't do that from backend, so this won't work!
-            // We need the creator's signature
-            
-            // Actually, for simplicity, let's just mark it as cancelled in backend
-            // and not refund on-chain. The creator can manually call cancel later.
-            
-            console.log('⚠️ Backend cannot cancel on behalf of creator (requires creator signature)');
-            console.log('💡 Marking game as cancelled in backend only');
-            
-            return { 
-                success: true, 
-                message: 'Game cancelled in backend (on-chain funds remain in escrow until creator calls cancel)'
-            };
-        } catch (error) {
-            console.error('❌ Game cancellation failed:', error);
-            return { success: false, error: error.message };
-        }
+        // This function is intentionally simplified
+        // Actual cancellation with refund happens in the frontend via Anchor .rpc()
+        console.log(`ℹ️ Game marked for cancellation in backend`);
+        console.log('   Creator will call cancel_game on-chain for refund');
+        
+        return { 
+            success: true, 
+            message: 'Game removed from backend list. Creator must cancel on-chain for refund.'
+        };
     }
 }
 
