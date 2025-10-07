@@ -752,6 +752,7 @@
                     <div class="wallet-balance" id="walletBalance">0.0000 SOL</div>
                 </div>
                 <button class="btn btn-primary" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+                <button class="btn btn-secondary" id="getDevnetSol" onclick="getDevnetSol()" style="display: none;">Get Devnet SOL</button>
                 
                 <button class="btn btn-secondary" id="disconnectBtn" onclick="disconnectWallet()" style="display: none;">Disconnect</button>
             </div>
@@ -1268,6 +1269,11 @@
                     disconnectBtnEl.style.display = 'inline-block';
                 }
                 
+                const getDevnetSolBtn = document.getElementById('getDevnetSol');
+                if (getDevnetSolBtn) {
+                    getDevnetSolBtn.style.display = 'inline-block';
+                }
+                
                 // Connect to server
                 connectToServer();
                 // Register wallet to backend list after socket connects
@@ -1346,6 +1352,11 @@
                     disconnectBtnEl.style.display = 'none';
                 }
                 
+                const getDevnetSolBtn = document.getElementById('getDevnetSol');
+                if (getDevnetSolBtn) {
+                    getDevnetSolBtn.style.display = 'none';
+                }
+                
                 // Disconnect from server
                 if (socket) {
                     socket.disconnect();
@@ -1354,6 +1365,44 @@
                 
             } catch (error) {
                 // Silent error handling
+            }
+        }
+
+        async function getDevnetSol() {
+            if (!gameState.walletAddress) {
+                showError('Please connect your wallet first', 'lobby');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${SERVER_URL}/api/airdrop`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        walletAddress: gameState.walletAddress
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showSuccessMessage('Airdrop successful! You received 2 SOL', 'lobby');
+                    
+                    // Refresh balance
+                    setTimeout(async () => {
+                        const newBalance = await getWalletBalance(gameState.walletAddress);
+                        if (newBalance !== null) {
+                            gameState.balance = newBalance;
+                            updateWalletDisplay();
+                        }
+                    }, 2000);
+                } else {
+                    const error = await response.json();
+                    showError('Airdrop failed: ' + error.error, 'lobby');
+                }
+            } catch (error) {
+                showError('Airdrop failed: ' + error.message, 'lobby');
             }
         }
         

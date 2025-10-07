@@ -8,13 +8,20 @@
     "dev": "node server.js",
     "build": "echo 'No build step needed for static files'"
   },
-  "keywords": ["wordle", "solana", "gaming", "crypto", "wagering"],
+  "keywords": [
+    "wordle",
+    "solana",
+    "gaming",
+    "crypto",
+    "wagering"
+  ],
   "author": "Wordle Wars",
   "license": "MIT",
   "dependencies": {
+    "@solana/web3.js": "^1.98.4",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "socket.io": "^4.7.2",
-    "cors": "^2.8.5"
+    "socket.io": "^4.7.2"
   },
   "engines": {
     "node": ">=16.0.0"

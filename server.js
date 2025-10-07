@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
+const SolanaGameClient = require('./solana-client');
 
 const app = express();
 const server = http.createServer(app);
@@ -9,6 +10,9 @@ const server = http.createServer(app);
 // Environment configuration
 const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Initialize Solana client
+const solanaClient = new SolanaGameClient();
 
 // CORS configuration for production
 const allowedOrigins = NODE_ENV === 'production' 
@@ -190,7 +194,7 @@ if (NODE_ENV === 'development') {
     });
 }
 
-app.post('/api/games', (req, res) => {
+app.post('/api/games', async (req, res) => {
     const { wager, playerAddress } = req.body;
     
     // Create game request
@@ -233,25 +237,43 @@ app.post('/api/games', (req, res) => {
         word: word,
         createdAt: Date.now(),
         guesses: [],
-        playerResults: {}
+        playerResults: {},
+        escrowId: null,
+        blockchainStatus: 'pending'
     };
     
-    games.push(newGame);
+    // Create blockchain escrow
+    try {
+        const escrowResult = await solanaClient.createGameEscrow(playerAddress, parseFloat(wager));
+        
+        if (!escrowResult.success) {
+            return res.status(400).json({ error: 'Blockchain error: ' + escrowResult.error });
+        }
+        
+        newGame.escrowId = escrowResult.escrowId;
+        newGame.blockchainStatus = 'escrow_created';
+        
+        games.push(newGame);
+        
+        console.log(`🎮 Game created with blockchain escrow: ${gameId}`);
+        
+        // Broadcast to all connected clients
+        io.emit('gameCreated', newGame);
+        
+        res.json(newGame);
+    } catch (error) {
+        console.error('❌ Blockchain integration failed:', error);
+        return res.status(500).json({ error: 'Failed to create blockchain escrow' });
+    }
     
-    // Game created successfully
-    
-    // Broadcast to all connected clients
-    io.emit('gameCreated', newGame);
     // Track wallet as connected/active
     try {
         if (playerAddress) connectedWallets.add(playerAddress);
         io.emit('connectedWallets', Array.from(connectedWallets));
     } catch (e) {}
-    
-    res.json(newGame);
 });
 
-app.post('/api/games/:gameId/join', (req, res) => {
+app.post('/api/games/:gameId/join', async (req, res) => {
     const { gameId } = req.params;
     const { playerAddress } = req.body;
     
@@ -296,6 +318,29 @@ app.post('/api/games/:gameId/join', (req, res) => {
     game.status = 'playing';
     game.startedAt = Date.now();
     
+    // Add player to blockchain escrow
+    try {
+        const joinResult = await solanaClient.joinGameEscrow(playerAddress, game.wager, game.escrowId);
+        
+        if (!joinResult.success) {
+            // Remove player from game if blockchain join fails
+            game.players.pop();
+            game.status = 'waiting';
+            delete game.startedAt;
+            return res.status(400).json({ error: 'Blockchain error: ' + joinResult.error });
+        }
+        
+        game.blockchainStatus = 'both_players_joined';
+        console.log(`🎮 Player joined blockchain escrow: ${playerAddress} in game ${gameId}`);
+    } catch (error) {
+        console.error('❌ Blockchain join failed:', error);
+        // Remove player from game if blockchain join fails
+        game.players.pop();
+        game.status = 'waiting';
+        delete game.startedAt;
+        return res.status(500).json({ error: 'Failed to join blockchain escrow' });
+    }
+    
     // Broadcast to all connected clients
     io.emit('gameJoined', game);
     // Track wallet as connected/active
@@ -306,6 +351,41 @@ app.post('/api/games/:gameId/join', (req, res) => {
     
     // Player joined game successfully
     res.json(game);
+});
+
+// Airdrop endpoint for testing
+app.post('/api/airdrop', async (req, res) => {
+    const { walletAddress } = req.body;
+    
+    if (!walletAddress) {
+        return res.status(400).json({ error: 'Wallet address required' });
+    }
+    
+    if (!validateWalletAddress(walletAddress)) {
+        return res.status(400).json({ error: 'Invalid wallet address' });
+    }
+    
+    try {
+        const result = await solanaClient.requestAirdrop(walletAddress, 2);
+        
+        if (result.success) {
+            res.json({ 
+                success: true, 
+                message: 'Airdrop successful', 
+                signature: result.signature 
+            });
+        } else {
+            res.status(500).json({ 
+                success: false, 
+                error: result.error 
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
 });
 
 // API to forfeit a game
