@@ -1894,7 +1894,7 @@
                     const result = await response.json();
                     console.log('🧹 Server cleanup result:', result);
                     if (result.removedCount > 0) {
-                        showMessage(`Cleaned up ${result.removedCount} stuck games`, 'success');
+                        showSuccessMessage(`Cleaned up ${result.removedCount} stuck games`, 'lobby');
                     }
                 }
             } catch (error) {
@@ -1982,7 +1982,7 @@
                 // If the game requires a blockchain signature, handle it
                 if (newGame.requiresSignature) {
                     console.log('🔐 Game requires signature, requesting wallet signature...');
-                    showMessage('Please sign the transaction to create your game escrow...', 'success');
+                    showSuccessMessage('Please sign the transaction to create your game escrow...', 'lobby');
                     
                     try {
                         console.log('🔍 [DEBUG] About to call createBlockchainTransaction...');
@@ -2000,7 +2000,7 @@
                             console.error('❌ [DEBUG] Transaction failed:', txResult.error);
                             // Notify server that blockchain transaction failed
                             try {
-                                await fetch(`/api/games/${newGame.id}/confirm-blockchain`, {
+                                await fetch(`${SERVER_URL}/api/games/${newGame.id}/confirm-blockchain`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ success: false, error: txResult.error })
@@ -2013,7 +2013,7 @@
                         
                         // Notify server that blockchain transaction was successful
                         try {
-                            const confirmResponse = await fetch(`/api/games/${newGame.id}/confirm-blockchain`, {
+                            const confirmResponse = await fetch(`${SERVER_URL}/api/games/${newGame.id}/confirm-blockchain`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ 
@@ -2037,7 +2037,7 @@
                             throw new Error('Failed to confirm blockchain transaction: ' + e.message);
                         }
                         
-                        showMessage('Blockchain transaction signed! Game created successfully!', 'success');
+                        showSuccessMessage('Blockchain transaction signed! Game created successfully!', 'lobby');
                     } catch (error) {
                         console.error('❌ [DEBUG] Error in blockchain transaction:', error);
                         throw new Error('Blockchain transaction error: ' + error.message);
