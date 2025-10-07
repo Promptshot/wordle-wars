@@ -1920,25 +1920,104 @@
                 return;
             }
             
-            // For waiting games, just notify backend to remove it
-            // Note: SOL stays in escrow until user manually calls cancel_game
+            // For waiting games, call cancel_game on smart contract for full refund
             if (isGameWaiting) {
                 const confirmMessage = `⚠️ CANCEL GAME ⚠️\n\nAre you sure you want to cancel this game?\n\n` +
-                    `Your ${gameState.currentGame.wager} SOL will remain in the escrow account.\n` +
-                    `The game will be removed from the lobby.\n\n` +
-                    `Note: To retrieve your SOL, you'll need to call the cancel_game function\n` +
-                    `(auto-refund feature coming soon).\n\n` +
-                    `Click OK to cancel this game.`;
+                    `You will receive a full refund of ${gameState.currentGame.wager} SOL\n` +
+                    `(100% refund - no fee for canceling before someone joins)\n\n` +
+                    `Click OK to cancel and get your refund.`;
                 
                 if (!confirm(confirmMessage)) {
+                    return;
+                }
+                
+                try {
+                    console.log('🏳️ Calling cancel_game on smart contract...');
+                    
+                    // Call cancel_game via Anchor SDK
+                    const provider = getProvider();
+                    if (!provider || !provider.isConnected) {
+                        showError('Wallet not connected', 'gameRoom');
+                        return;
+                    }
+                    
+                    const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
+                    const wallet = {
+                        publicKey: provider.publicKey,
+                        signTransaction: (tx) => provider.signTransaction(tx),
+                        signAllTransactions: (txs) => provider.signAllTransactions(txs),
+                    };
+                    const anchorProvider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' });
+                    
+                    // Load IDL
+                    const idlResponse = await fetch('/wordle-escrow-idl.json');
+                    if (!idlResponse.ok) {
+                        throw new Error('Failed to load IDL file');
+                    }
+                    const idl = await idlResponse.json();
+                    
+                    const programId = new solanaWeb3.PublicKey(gameState.currentGame.escrowDetails.programId);
+                    const program = new anchor.Program(idl, programId, anchorProvider);
+                    
+                    const gameKeypair = solanaWeb3.Keypair.fromSecretKey(
+                        new Uint8Array(gameState.currentGame.escrowDetails.gameKeypair.secretKey)
+                    );
+                    const escrowKeypair = solanaWeb3.Keypair.fromSecretKey(
+                        new Uint8Array(gameState.currentGame.escrowDetails.escrowKeypair.secretKey)
+                    );
+                    
+                    console.log('📝 Calling cancel_game...');
+                    console.log('   Creator:', provider.publicKey.toString());
+                    console.log('   Game Account:', gameKeypair.publicKey.toString());
+                    console.log('   Escrow Account:', escrowKeypair.publicKey.toString());
+                    
+                    // Build transaction
+                    const tx = await program.methods
+                        .cancelGame()
+                        .accounts({
+                            creator: provider.publicKey,
+                            gameAccount: gameKeypair.publicKey,
+                            escrowAccount: escrowKeypair.publicKey,
+                        })
+                        .transaction();
+                    
+                    // Get fresh blockhash
+                    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+                    tx.recentBlockhash = blockhash;
+                    tx.feePayer = provider.publicKey;
+                    
+                    // Sign with user wallet via Phantom
+                    const signedTx = await provider.signTransaction(tx);
+                    
+                    // Send
+                    const signature = await connection.sendRawTransaction(signedTx.serialize());
+                    console.log('📤 Cancel transaction sent:', signature);
+                    
+                    // Confirm
+                    try {
+                        await connection.confirmTransaction({
+                            signature,
+                            blockhash,
+                            lastValidBlockHeight
+                        }, 'confirmed');
+                        console.log('✅ Cancel confirmed on-chain');
+                    } catch (confirmError) {
+                        console.warn('⚠️ Confirmation timeout (transaction likely still succeeded):', confirmError.message);
+                    }
+                    
+                    console.log('✅ Game cancelled on blockchain, refund issued:', signature);
+                    
+                } catch (cancelError) {
+                    console.error('❌ Cancel transaction failed:', cancelError);
+                    showError('Failed to cancel game on blockchain: ' + cancelError.message, 'gameRoom');
                     return;
                 }
             }
             
             try {
-                console.log('🏳️ Canceling game...');
+                console.log('🏳️ Notifying backend to remove game...');
                 
-                // Call backend forfeit endpoint (which now just removes the game for waiting status)
+                // Call backend forfeit endpoint to remove the game from the list
                 const response = await fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/forfeit`, {
                     method: 'POST',
                     headers: {
@@ -1951,7 +2030,7 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('✅ Game cancelled:', data.message);
+                    console.log('✅ Backend notified:', data.message);
                     
                     // Clear game state FIRST before navigation
                     gameState.currentGame = null;
