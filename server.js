@@ -252,10 +252,19 @@ app.post('/api/games', async (req, res) => {
             return res.status(400).json({ error: 'Blockchain error: ' + escrowResult.error });
         }
         
-        newGame.escrowId = escrowResult.escrowId;
-        newGame.blockchainStatus = 'escrow_created';
-        newGame.requiresSignature = escrowResult.requiresSignature || false;
-        newGame.escrowAddress = escrowResult.escrowAddress;
+                newGame.escrowId = escrowResult.escrowId;
+                newGame.blockchainStatus = 'escrow_created';
+                newGame.requiresSignature = escrowResult.requiresSignature || false;
+                newGame.escrowAddress = escrowResult.escrowAddress;
+                
+                // Pass escrow details to frontend for transaction creation
+                newGame.escrowDetails = {
+                    programId: escrowResult.programId,
+                    gameAccount: escrowResult.gameAccount,
+                    escrowAccount: escrowResult.escrowAccount,
+                    escrowType: escrowResult.escrowType,
+                    wagerAmount: escrowResult.wagerAmount
+                };
         
         games.push(newGame);
         

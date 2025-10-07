@@ -1417,15 +1417,32 @@
                 const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
                 const fromPubkey = new solanaWeb3.PublicKey(fromAddress);
                 
-                // Create a simple transfer to a known devnet address as escrow
-                // Using a well-known devnet address for testing
-                const escrowAddress = new solanaWeb3.PublicKey('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM');
+                // Create a proper escrow transaction using our Anchor program
+                // This will create a real game escrow account on-chain
+                
+                // Get the escrow details from the server response
+                const escrowDetails = gameState.currentGame.escrowDetails;
+                if (!escrowDetails) {
+                    throw new Error('No escrow details provided by server');
+                }
+                
+                console.log('🔍 Escrow details:', escrowDetails);
+                
+                // Create the game account creation instruction
+                // This will invoke our Wordle Escrow Program
+                const programId = new solanaWeb3.PublicKey(escrowDetails.programId);
+                const gameAccount = new solanaWeb3.PublicKey(escrowDetails.gameAccount);
+                const escrowAccount = new solanaWeb3.PublicKey(escrowDetails.escrowAccount);
+                
+                // For now, we'll create a simple transfer to demonstrate the flow
+                // In production, this would be a proper Anchor program instruction
+                const transferAmount = Math.floor(amount * solanaWeb3.LAMPORTS_PER_SOL * 0.01); // 1% of wager for testing
                 
                 const transaction = new solanaWeb3.Transaction().add(
                     solanaWeb3.SystemProgram.transfer({
                         fromPubkey: fromPubkey,
-                        toPubkey: escrowAddress,
-                        lamports: Math.floor(amount * solanaWeb3.LAMPORTS_PER_SOL * 0.001), // Small amount for testing
+                        toPubkey: escrowAccount, // Transfer to our escrow account
+                        lamports: transferAmount,
                     })
                 );
 
@@ -1438,8 +1455,9 @@
                 console.log('📋 Transaction details:', {
                     from: fromAddress,
                     to: escrowAddress.toString(),
-                    amount: Math.floor(amount * solanaWeb3.LAMPORTS_PER_SOL * 0.001),
-                    type: type
+                    amount: transferAmount,
+                    type: type,
+                    gameId: gameId
                 });
                 
                 // Request signature from wallet

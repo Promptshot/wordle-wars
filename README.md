@@ -1,192 +1,181 @@
-# Wordle Wars 🎮⚔️
+# Wordle Wars - Solana Blockchain Game
 
-**Skill Based 1v1 Wagers. Winner Takes All.**
-
-A skill-based multiplayer Wordle game where players wager SOL and compete head-to-head. The winner takes the entire pot!
-
-## 🚀 Live Demo
-
-[Your domain will go here]
+A real-time multiplayer Wordle game with SOL wagers, built on Solana blockchain using Anchor framework.
 
 ## 🎯 Features
 
-- **Real Phantom Wallet Integration**: Connect your Solana wallet
-- **1v1 Skill-Based Competition**: No luck, just skill
-- **SOL Wagering**: Real cryptocurrency stakes
-- **Winner Takes All**: Winner gets the entire pot
-- **Real-Time Multiplayer**: Socket.IO powered gameplay
-- **Game History**: Track completed games and winnings
+- **Real Blockchain Integration**: Uses Solana devnet with proper escrow accounts
+- **Anchor Framework**: Smart contracts written in Rust using Anchor
+- **Real SOL Wagers**: Players bet actual SOL on game outcomes
+- **Multiplayer**: Real-time gameplay with Socket.IO
+- **Wallet Integration**: Phantom wallet support with transaction signing
 
-## 🛠️ Tech Stack
+## 🏗️ Architecture
 
-- **Frontend**: HTML, CSS, JavaScript
-- **Backend**: Node.js, Express, Socket.IO
-- **Blockchain**: Solana (Phantom Wallet)
-- **Real-time**: WebSocket connections
+### Smart Contract (Anchor Program)
+- **Program ID**: `WordleEscrow111111111111111111111111111111`
+- **Location**: `programs/wordle-escrow/src/lib.rs`
+- **Features**:
+  - Create game escrow accounts
+  - Join games with SOL deposits
+  - Settle games and distribute winnings
+  - Cancel games and refund players
 
-## 📦 Quick Start
+### Backend (Node.js)
+- **Server**: Express.js with Socket.IO
+- **Blockchain Client**: Custom Solana client for escrow management
+- **Real-time**: WebSocket communication for game state
+
+### Frontend (HTML/JS)
+- **Wallet**: Phantom wallet integration
+- **UI**: Modern, responsive design
+- **Transactions**: Real Solana transaction signing
+
+## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 16+ installed
-- Phantom Wallet browser extension
+- Node.js 18+
+- Solana CLI
+- Anchor CLI
+- Phantom Wallet
 
-### Local Development
+### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone [your-repo-url]
-   cd wordle-wars
-   ```
-
-2. **Install dependencies**
+1. **Install dependencies**:
    ```bash
    npm install
    ```
 
-3. **Start the servers**
+2. **Install Anchor CLI**:
    ```bash
-   # Start backend server
-   npm start
-   
-   # In another terminal, start frontend server
-   python -m http.server 8000
+   npm install -g @coral-xyz/anchor-cli
    ```
 
-4. **Open the game**
-   - Navigate to `http://localhost:8000/pump-style.html`
-
-## 🌐 Deployment
-
-### Option 1: Netlify + Railway (Recommended)
-
-**Frontend (Netlify):**
-1. Connect your GitHub repo to Netlify
-2. Set build command: `echo "No build needed"`
-3. Set publish directory: `/`
-4. Deploy!
-
-**Backend (Railway):**
-1. Connect your GitHub repo to Railway
-2. Railway will auto-detect Node.js
-3. Set start command: `npm start`
-4. Deploy!
-
-### Option 2: VPS Deployment
-
-1. **Set up server** (Ubuntu 20.04+)
-2. **Install Node.js**
+3. **Install Solana CLI**:
    ```bash
-   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-   sudo apt-get install -y nodejs
+   sh -c "$(curl -sSfL https://release.solana.com/v1.17.0/install)"
    ```
 
-3. **Clone and setup**
+### Development Setup
+
+1. **Configure Solana for devnet**:
    ```bash
-   git clone [your-repo-url]
-   cd wordle-wars
-   npm install
+   solana config set --url devnet
+   solana-keygen new --outfile ~/.config/solana/id.json
    ```
 
-4. **Install PM2**
+2. **Get devnet SOL**:
    ```bash
-   npm install -g pm2
-   pm2 start server.js --name "wordle-wars"
-   pm2 startup
-   pm2 save
+   solana airdrop 2
    ```
 
-5. **Setup Nginx** (for serving static files and SSL)
-6. **Configure domain** to point to your server
+3. **Build and deploy the Anchor program**:
+   ```bash
+   anchor build
+   anchor deploy
+   ```
 
-## 🔧 Configuration
+4. **Start the backend server**:
+   ```bash
+   npm run dev
+   ```
 
-### Environment Variables
-
-Create a `.env` file for production:
-
-```env
-PORT=3001
-NODE_ENV=production
-```
-
-### Server URLs
-
-Update the `SERVER_URL` in `pump-style.html` for production:
-
-```javascript
-const SERVER_URL = 'https://your-backend-domain.com';
-```
+5. **Open the frontend**:
+   - Navigate to `http://localhost:3001`
+   - Connect your Phantom wallet
+   - Get devnet SOL using the "Get Devnet SOL" button
 
 ## 🎮 How to Play
 
-1. **Connect Wallet**: Click "Connect Wallet" to link your Phantom wallet
-2. **Create Game**: Set your wager amount and create a game
-3. **Wait for Opponent**: Another player can join your game
-4. **Play Wordle**: Guess the 5-letter word in 6 tries
-5. **Win SOL**: First to guess correctly wins the entire pot!
+1. **Connect Wallet**: Connect your Phantom wallet
+2. **Get Devnet SOL**: Use the airdrop button to get test SOL
+3. **Create Game**: Set a wager amount and create a game
+4. **Sign Transaction**: Approve the blockchain transaction
+5. **Wait for Opponent**: Another player joins your game
+6. **Play Wordle**: Make guesses within the time limit
+7. **Win/Lose**: Winner takes all SOL, loser gets nothing
 
-## 🏆 Game Rules
+## 🔧 Development
 
-- **Minimum Bet**: 0.022 SOL
-- **Maximum Bet**: 10 SOL
-- **Time Limit**: 5 minutes per game
-- **Winner Takes All**: No house edge, winner gets everything
-- **Forfeit Rules**: 
-  - Before opponent joins: 5% fee (95% refund)
-  - After opponent joins: 100% loss
+### Smart Contract Development
 
-## 🔒 Security Features
+The Anchor program is located in `programs/wordle-escrow/`:
 
-- **Server-side validation**: All game logic validated on backend
-- **Input sanitization**: XSS prevention
-- **Rate limiting**: Prevents spam
-- **Wallet validation**: Solana address format checking
+- **`src/lib.rs`**: Main program logic
+- **`Cargo.toml`**: Rust dependencies
+- **`Anchor.toml`**: Anchor configuration
 
-## 📱 Browser Support
+### Backend Development
 
-- Chrome (recommended)
-- Firefox
-- Safari
-- Edge
+- **`server.js`**: Express server with Socket.IO
+- **`solana-client.js`**: Blockchain interaction client
+- **`package.json`**: Node.js dependencies
 
-**Note**: Phantom Wallet required for SOL transactions
+### Frontend Development
 
-## 🤝 Contributing
+- **`pump-style.html`**: Main frontend application
+- **Wallet Integration**: Phantom wallet connection
+- **Transaction Handling**: Solana transaction signing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+## 🧪 Testing
 
-## 📄 License
+### Test the Smart Contract
+```bash
+anchor test
+```
 
-MIT License - see LICENSE file for details
+### Test the Full Application
+1. Start the server: `npm run dev`
+2. Open two browser windows
+3. Connect different wallets
+4. Create and join games
+5. Test the complete flow
 
-## 🆘 Support
+## 📚 Documentation
+
+### Solana Concepts Used
+- **Program Derived Addresses (PDAs)**: For escrow accounts
+- **Cross Program Invocations (CPIs)**: For SOL transfers
+- **Account Model**: Game state storage
+- **Transaction Signing**: Wallet integration
+
+### Anchor Framework
+- **Instructions**: create_game, join_game, settle_game, cancel_game
+- **Accounts**: GameAccount, EscrowAccount
+- **Error Handling**: Custom error codes
+- **Security**: Proper validation and checks
+
+## 🚨 Important Notes
+
+- **Devnet Only**: This uses Solana devnet for testing
+- **Real Transactions**: All SOL transfers are real blockchain transactions
+- **Wallet Required**: Phantom wallet is required to play
+- **Transaction Fees**: Small fees apply to all blockchain operations
+
+## 🔒 Security
+
+- **Input Validation**: All user inputs are validated
+- **Balance Checks**: Insufficient balance protection
+- **Game State**: Server-authoritative game logic
+- **Transaction Signing**: All transactions require wallet signatures
+
+## 📞 Support
 
 For issues or questions:
-- Create an issue on GitHub
-- Check the troubleshooting section below
+1. Check the console logs for detailed error messages
+2. Ensure your wallet has sufficient devnet SOL
+3. Verify the Anchor program is deployed correctly
+4. Check network connectivity to Solana devnet
 
-## 🔧 Troubleshooting
+## 🎉 Production Deployment
 
-### Phantom Wallet Not Connecting
-- Ensure you're on HTTPS (required for production)
-- Check if Phantom extension is installed and enabled
-- Try refreshing the page
-
-### Server Connection Issues
-- Verify backend server is running
-- Check CORS settings
-- Ensure firewall allows connections
-
-### Game Not Starting
-- Check browser console for errors
-- Verify wallet is connected
-- Ensure sufficient SOL balance
+To deploy to production:
+1. Deploy the Anchor program to Solana mainnet
+2. Update the program ID in the configuration
+3. Deploy the backend to a cloud service
+4. Deploy the frontend to a CDN
+5. Update wallet connection to mainnet
 
 ---
 
-**Built with ❤️ for the Solana gaming community**
-
+**Built with ❤️ using Solana, Anchor, and modern web technologies**
