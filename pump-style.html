@@ -808,7 +808,7 @@
                 
                 <div class="games-list">
                     <h3 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <span>🎮 Available Games</span>
+                        <span>Available Games</span>
                         <span id="gamesCount" style="font-size: 14px; color: #80FF80; font-weight: normal;"></span>
                     </h3>
                     <div id="gamesList">
@@ -2894,7 +2894,7 @@
                 
                 waitingGames.forEach(game => {
                     const isMyGame = gameState.walletAddress && game.players.includes(gameState.walletAddress);
-                    const buttonText = isMyGame ? '⏳ Your Game' : '🎮 Join Game';
+                    const buttonText = isMyGame ? 'Your Game' : 'Join Game';
                     const buttonClass = isMyGame ? 'btn btn-secondary' : 'btn btn-primary';
                     
                     // Calculate time waiting
@@ -2915,7 +2915,7 @@
                     headerDiv.className = 'game-header-info';
                     headerDiv.innerHTML = `
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <span class="game-wager" style="font-size: 18px; font-weight: bold; color: #FFD700;">💰 ${game.wager} SOL</span>
+                            <span class="game-wager" style="font-size: 18px; font-weight: bold; color: #FFD700;">${game.wager} SOL</span>
                             <span class="game-status" style="font-size: 12px; color: #00FF00; background: rgba(0,255,0,0.1); padding: 4px 8px; border-radius: 4px;">● WAITING</span>
                         </div>
                     `;
@@ -2925,9 +2925,9 @@
                     detailsDiv.style.color = '#CCCCCC';
                     detailsDiv.style.lineHeight = '1.6';
                     
-                    const playersText = `👥 ${game.players.length}/2 Players`;
-                    const creatorText = `👤 ${game.players[0].slice(0, 6)}...${game.players[0].slice(-4)}`;
-                    const timeTextFormatted = `⏱️ ${timeText}`;
+                    const playersText = `${game.players.length}/2 Players`;
+                    const creatorText = `Creator: ${game.players[0].slice(0, 6)}...${game.players[0].slice(-4)}`;
+                    const timeTextFormatted = `${timeText}`;
                     
                     detailsDiv.innerHTML = `
                         <div>${playersText}</div>
@@ -3062,22 +3062,22 @@
                 
                 switch(entry.status) {
                     case 'waiting':
-                        statusIcon = '⏳';
+                        statusIcon = '○';
                         statusColor = '#FFA500';
                         statusText = 'WAITING';
                         break;
                     case 'playing':
-                        statusIcon = '🎮';
+                        statusIcon = '▶';
                         statusColor = '#00FF00';
                         statusText = 'IN PROGRESS';
                         break;
                     case 'completed':
-                        statusIcon = '✅';
+                        statusIcon = '✓';
                         statusColor = '#80FF80';
                         statusText = 'COMPLETED';
                         break;
                     case 'cancelled':
-                        statusIcon = '❌';
+                        statusIcon = '✕';
                         statusColor = '#FF4444';
                         statusText = 'CANCELLED';
                         break;
