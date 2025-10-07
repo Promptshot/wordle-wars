@@ -1999,6 +1999,10 @@
                         console.log('   Game Account:', gameKeypair.publicKey.toString());
                         console.log('   Escrow Account:', escrowKeypair.publicKey.toString());
                         
+                        // Get fresh blockhash FIRST
+                        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+                        console.log('🔄 Fresh blockhash obtained:', blockhash);
+                        
                         // Build transaction
                         const tx = await program.methods
                             .cancelGame()
@@ -2009,16 +2013,18 @@
                             })
                             .transaction();
                         
-                        // Get fresh blockhash
-                        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+                        // Set fresh blockhash
                         tx.recentBlockhash = blockhash;
                         tx.feePayer = provider.publicKey;
                         
                         // Sign with user wallet via Phantom
                         const signedTx = await provider.signTransaction(tx);
                         
-                        // Send
-                        const signature = await connection.sendRawTransaction(signedTx.serialize());
+                        // Send with skipPreflight to avoid duplicate detection
+                        const signature = await connection.sendRawTransaction(signedTx.serialize(), {
+                            skipPreflight: false,
+                            maxRetries: 3
+                        });
                         console.log('📤 Cancel transaction sent:', signature);
                         
                         // Mark as processed
