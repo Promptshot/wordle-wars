@@ -3,6 +3,13 @@ use anchor_lang::system_program;
 
 declare_id!("2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM");
 
+// House/Dev wallet for fees
+pub const HOUSE_WALLET: &str = "FRG1E6NiJ9UVN4T4v2r9hN1JzqB9r1uPuetCLXuqiRjT";
+
+// Fee percentages (in basis points: 100 = 1%)
+pub const WINNER_FEE_BPS: u64 = 200; // 2%
+pub const FORFEIT_FEE_BPS: u64 = 500; // 5%
+
 #[program]
 pub mod wordle_escrow {
     use super::*;
@@ -83,41 +90,62 @@ pub mod wordle_escrow {
         Ok(())
     }
 
-    // Settle game - distribute winnings
-    pub fn settle_game(ctx: Context<SettleGame>, winner: Pubkey) -> Result<()> {
+    // Settle game - distribute winnings with fees
+    pub fn settle_game(ctx: Context<SettleGame>, winner: Pubkey, is_forfeit: bool, both_lost: bool) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         let escrow_account = &mut ctx.accounts.escrow_account;
         
         require!(game_account.status == GameStatus::Playing, ErrorCode::GameNotPlaying);
-        require!(winner == game_account.players[0] || winner == game_account.players[1], ErrorCode::InvalidWinner);
         
         // Update game state
-        game_account.winner = winner;
         game_account.status = GameStatus::Completed;
         game_account.completed_at = Clock::get()?.unix_timestamp;
         
-        // Get total amount before borrowing
         let total_amount = escrow_account.total_amount;
-        
-        // Transfer all winnings to winner
-        let winner_account = if winner == game_account.players[0] {
-            &ctx.accounts.creator
-        } else {
-            &ctx.accounts.opponent
-        };
-        
         let escrow_info = ctx.accounts.escrow_account.to_account_info();
-        let winner_info = winner_account.to_account_info();
+        let house_info = ctx.accounts.house_wallet.to_account_info();
         
-        // Transfer all SOL from escrow to winner
-        **escrow_info.try_borrow_mut_lamports()? -= total_amount;
-        **winner_info.try_borrow_mut_lamports()? += total_amount;
+        if both_lost {
+            // Both players lost - entire pot goes to house
+            game_account.winner = Pubkey::default(); // No winner
+            
+            **escrow_info.try_borrow_mut_lamports()? -= total_amount;
+            **house_info.try_borrow_mut_lamports()? += total_amount;
+            
+            msg!("Both players lost! House gets {} lamports", total_amount);
+        } else {
+            // There's a winner
+            require!(winner == game_account.players[0] || winner == game_account.players[1], ErrorCode::InvalidWinner);
+            game_account.winner = winner;
+            
+            // Calculate fee
+            let fee_bps = if is_forfeit { FORFEIT_FEE_BPS } else { WINNER_FEE_BPS };
+            let fee_amount = (total_amount * fee_bps) / 10000; // basis points to percentage
+            let winner_amount = total_amount - fee_amount;
+            
+            // Get winner account
+            let winner_account = if winner == game_account.players[0] {
+                &ctx.accounts.creator
+            } else {
+                &ctx.accounts.opponent
+            };
+            let winner_info = winner_account.to_account_info();
+            
+            // Transfer fee to house
+            **escrow_info.try_borrow_mut_lamports()? -= fee_amount;
+            **house_info.try_borrow_mut_lamports()? += fee_amount;
+            
+            // Transfer winnings to winner
+            **escrow_info.try_borrow_mut_lamports()? -= winner_amount;
+            **winner_info.try_borrow_mut_lamports()? += winner_amount;
+            
+            msg!("Game settled! Winner: {} gets {} lamports, House fee: {} lamports", winner, winner_amount, fee_amount);
+        }
         
-        msg!("Game settled! Winner: {} gets {} lamports", winner, total_amount);
         Ok(())
     }
 
-    // Cancel game - refund players
+    // Cancel game - refund creator (only for waiting games)
     pub fn cancel_game(ctx: Context<CancelGame>) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         let escrow_account = &mut ctx.accounts.escrow_account;
@@ -139,6 +167,52 @@ pub mod wordle_escrow {
         game_account.completed_at = Clock::get()?.unix_timestamp;
         
         msg!("Game cancelled, refunded: {} lamports", refund_amount);
+        Ok(())
+    }
+    
+    // Forfeit game - player gives up during active game (5% fee)
+    pub fn forfeit_game(ctx: Context<ForfeitGame>, forfeiter: Pubkey) -> Result<()> {
+        let game_account = &mut ctx.accounts.game_account;
+        let escrow_account = &mut ctx.accounts.escrow_account;
+        
+        require!(game_account.status == GameStatus::Playing, ErrorCode::GameNotPlaying);
+        require!(forfeiter == game_account.players[0] || forfeiter == game_account.players[1], ErrorCode::InvalidWinner);
+        
+        // Determine winner (the non-forfeiter)
+        let winner = if forfeiter == game_account.players[0] {
+            game_account.players[1]
+        } else {
+            game_account.players[0]
+        };
+        
+        game_account.winner = winner;
+        game_account.status = GameStatus::Completed;
+        game_account.completed_at = Clock::get()?.unix_timestamp;
+        
+        let total_amount = escrow_account.total_amount;
+        let fee_amount = (total_amount * FORFEIT_FEE_BPS) / 10000; // 5% forfeit fee
+        let winner_amount = total_amount - fee_amount;
+        
+        let escrow_info = ctx.accounts.escrow_account.to_account_info();
+        let house_info = ctx.accounts.house_wallet.to_account_info();
+        
+        // Get winner account
+        let winner_account = if winner == game_account.players[0] {
+            &ctx.accounts.creator
+        } else {
+            &ctx.accounts.opponent
+        };
+        let winner_info = winner_account.to_account_info();
+        
+        // Transfer fee to house
+        **escrow_info.try_borrow_mut_lamports()? -= fee_amount;
+        **house_info.try_borrow_mut_lamports()? += fee_amount;
+        
+        // Transfer winnings to winner
+        **escrow_info.try_borrow_mut_lamports()? -= winner_amount;
+        **winner_info.try_borrow_mut_lamports()? += winner_amount;
+        
+        msg!("Game forfeited! Winner: {} gets {} lamports, House fee: {} lamports", winner, winner_amount, fee_amount);
         Ok(())
     }
 }
@@ -187,11 +261,17 @@ pub struct SettleGame<'info> {
     #[account(mut)]
     pub escrow_account: Account<'info, EscrowAccount>,
     
-    /// CHECK: This is the winner account
+    /// CHECK: This is the creator account
+    #[account(mut)]
     pub creator: AccountInfo<'info>,
     
     /// CHECK: This is the opponent account
+    #[account(mut)]
     pub opponent: AccountInfo<'info>,
+    
+    /// CHECK: This is the house wallet for fees
+    #[account(mut)]
+    pub house_wallet: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -204,6 +284,27 @@ pub struct CancelGame<'info> {
     
     #[account(mut)]
     pub escrow_account: Account<'info, EscrowAccount>,
+}
+
+#[derive(Accounts)]
+pub struct ForfeitGame<'info> {
+    #[account(mut)]
+    pub game_account: Account<'info, GameAccount>,
+    
+    #[account(mut)]
+    pub escrow_account: Account<'info, EscrowAccount>,
+    
+    /// CHECK: This is the creator account
+    #[account(mut)]
+    pub creator: AccountInfo<'info>,
+    
+    /// CHECK: This is the opponent account
+    #[account(mut)]
+    pub opponent: AccountInfo<'info>,
+    
+    /// CHECK: This is the house wallet for fees
+    #[account(mut)]
+    pub house_wallet: AccountInfo<'info>,
 }
 
 #[account]
