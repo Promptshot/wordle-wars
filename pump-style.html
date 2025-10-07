@@ -444,19 +444,30 @@
 
         .game-item {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px;
-            background: #1A1A1A;
+            flex-direction: column;
+            padding: 16px;
+            background: linear-gradient(135deg, #1A1A1A 0%, #252525 100%);
             border: 1px solid #404040;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            transition: all 0.2s ease;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
         .game-item:hover {
             border-color: #80FF80;
             transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(128, 255, 128, 0.2);
+        }
+        
+        .game-item.my-game {
+            border-color: #FFD700;
+            background: linear-gradient(135deg, #2A2410 0%, #352D15 100%);
+        }
+        
+        .game-item.my-game:hover {
+            border-color: #FFD700;
+            box-shadow: 0 4px 16px rgba(255, 215, 0, 0.2);
         }
 
         .game-info {
@@ -796,7 +807,10 @@
                 <div id="lobbyErrorMessage" style="display: none; color: #FF4444; text-align: center; margin-top: 10px; padding: 10px; background: rgba(255, 68, 68, 0.1); border: 1px solid #FF4444; border-radius: 5px;"></div>
                 
                 <div class="games-list">
-                    <h3>Available Games</h3>
+                    <h3 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <span>🎮 Available Games</span>
+                        <span id="gamesCount" style="font-size: 14px; color: #80FF80; font-weight: normal;"></span>
+                    </h3>
                     <div id="gamesList">
                         <p style="color: #CCCCCC; text-align: center; padding: 20px;">No games available. Create one!</p>
                     </div>
@@ -2846,7 +2860,13 @@
             }
             
             const gamesList = document.getElementById('gamesList');
+            const gamesCount = document.getElementById('gamesCount');
             const waitingGames = availableGames.filter(g => g.status === 'waiting');
+            
+            // Update count badge
+            if (gamesCount) {
+                gamesCount.textContent = waitingGames.length > 0 ? `${waitingGames.length} active` : '';
+            }
             
             if (waitingGames.length === 0) {
                 gamesList.innerHTML = '<p style="color: #CCCCCC; text-align: center; padding: 20px;">No games available. Create one!</p>';
@@ -2856,41 +2876,63 @@
                 
                 waitingGames.forEach(game => {
                     const isMyGame = gameState.walletAddress && game.players.includes(gameState.walletAddress);
-                    const buttonText = isMyGame ? 'Your Game' : 'Join';
+                    const buttonText = isMyGame ? '⏳ Your Game' : '🎮 Join Game';
                     const buttonClass = isMyGame ? 'btn btn-secondary' : 'btn btn-primary';
+                    
+                    // Calculate time waiting
+                    const createdTime = new Date(parseInt(game.id.split('_')[1]));
+                    const waitingMinutes = Math.floor((Date.now() - createdTime) / 60000);
+                    const timeText = waitingMinutes < 1 ? 'Just now' : `${waitingMinutes}m ago`;
                     
                     // Create elements safely to prevent XSS
                     const gameItem = document.createElement('div');
                     gameItem.className = 'game-item';
+                    if (isMyGame) gameItem.classList.add('my-game');
                     
                     const gameInfo = document.createElement('div');
                     gameInfo.className = 'game-info';
                     
-                    const wagerDiv = document.createElement('div');
-                    wagerDiv.className = 'game-wager';
-                    wagerDiv.textContent = `${game.wager} SOL`;
+                    // Header with wager and status
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'game-header-info';
+                    headerDiv.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span class="game-wager" style="font-size: 18px; font-weight: bold; color: #FFD700;">💰 ${game.wager} SOL</span>
+                            <span class="game-status" style="font-size: 12px; color: #00FF00; background: rgba(0,255,0,0.1); padding: 4px 8px; border-radius: 4px;">● WAITING</span>
+                        </div>
+                    `;
                     
-                    const playersDiv = document.createElement('div');
-                    playersDiv.className = 'game-players';
-                    playersDiv.textContent = `${game.players.length}/2 players`;
+                    const detailsDiv = document.createElement('div');
+                    detailsDiv.style.fontSize = '13px';
+                    detailsDiv.style.color = '#CCCCCC';
+                    detailsDiv.style.lineHeight = '1.6';
                     
-                    const creatorDiv = document.createElement('div');
-                    creatorDiv.className = 'game-creator';
-                    creatorDiv.textContent = `Creator: ${game.players[0].slice(0, 8)}...${game.players[0].slice(-4)}`;
+                    const playersText = `👥 ${game.players.length}/2 Players`;
+                    const creatorText = `👤 ${game.players[0].slice(0, 6)}...${game.players[0].slice(-4)}`;
+                    const timeTextFormatted = `⏱️ ${timeText}`;
+                    
+                    detailsDiv.innerHTML = `
+                        <div>${playersText}</div>
+                        <div>${creatorText}</div>
+                        <div style="color: #999;">${timeTextFormatted}</div>
+                    `;
                     
                     const button = document.createElement('button');
                     button.className = buttonClass;
                     button.textContent = buttonText;
+                    button.style.marginTop = '12px';
+                    button.style.width = '100%';
+                    
                     if (isMyGame) {
                         button.disabled = true;
+                        button.title = 'This is your game - waiting for opponent';
                         button.onclick = () => rejoinGame();
                     } else {
                         button.onclick = () => joinGame(game.id);
                     }
                     
-                    gameInfo.appendChild(wagerDiv);
-                    gameInfo.appendChild(playersDiv);
-                    gameInfo.appendChild(creatorDiv);
+                    gameInfo.appendChild(headerDiv);
+                    gameInfo.appendChild(detailsDiv);
                     gameItem.appendChild(gameInfo);
                     gameItem.appendChild(button);
                     
