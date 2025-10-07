@@ -6,13 +6,27 @@
     <title>Wordle Wars - Skill Based 1v1 Wagers</title>
     <link rel="icon" type="image/png" href="transparent.png">
     
-    <!-- Buffer Polyfill (Required for Solana web3.js in browser) -->
-    <script src="https://bundle.run/buffer@6.0.3"></script>
-    
-    <!-- Phantom Wallet Adapter -->
-    <script src="https://unpkg.com/@solana/wallet-adapter-base@0.9.23/lib/index.iife.js"></script>
-    <script src="https://unpkg.com/@solana/wallet-adapter-phantom@0.9.24/lib/index.iife.js"></script>
-    <script src="https://unpkg.com/@solana/web3.js@1.87.6/lib/index.iife.js"></script>
+    <!-- Solana web3.js Browser Bundle (with Buffer polyfill included) -->
+    <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.87.6/lib/index.iife.min.js"></script>
+    <script>
+        // Polyfill Buffer if not available
+        if (typeof Buffer === 'undefined') {
+            window.Buffer = {
+                from: function(data, encoding) {
+                    if (typeof data === 'string') {
+                        return new TextEncoder().encode(data);
+                    }
+                    return new Uint8Array(data);
+                },
+                alloc: function(size) {
+                    return new Uint8Array(size);
+                },
+                isBuffer: function(obj) {
+                    return obj instanceof Uint8Array;
+                }
+            };
+        }
+    </script>
     
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -1431,63 +1445,37 @@
         }
 
         async function createBlockchainTransaction(fromAddress, amount, type, gameData = null) {
-            console.log('🚀 [REAL] createBlockchainTransaction called with:', {
-                fromAddress,
-                amount,
-                type,
-                gameData: gameData ? 'present' : 'null'
-            });
+            console.log('🚀 [REAL] createBlockchainTransaction called');
             
             try {
                 const provider = getProvider();
-                console.log('🔍 [REAL] Provider check:', {
-                    provider: provider,
-                    isPhantom: provider?.isPhantom,
-                    isConnected: provider?.isConnected,
-                    publicKey: provider?.publicKey?.toString()
-                });
-                
-                if (!provider) {
+                if (!provider || !provider.isConnected) {
                     return { success: false, error: 'Wallet not connected' };
                 }
 
-                const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
-                const fromPubkey = new solanaWeb3.PublicKey(fromAddress);
-                
-                // Get escrow details from game data
+                // Get escrow details
                 const escrowDetails = gameData?.escrowDetails || gameState.currentGame?.escrowDetails;
-                console.log('🔍 [REAL] Full gameData:', gameData);
-                console.log('🔍 [REAL] Escrow details found:', escrowDetails);
-                
                 if (!escrowDetails) {
-                    console.error('❌ [REAL] No escrow details found in:', {
-                        gameData: gameData,
-                        currentGame: gameState.currentGame,
-                        gameDataEscrow: gameData?.escrowDetails,
-                        currentGameEscrow: gameState.currentGame?.escrowDetails
-                    });
                     throw new Error('No escrow details provided by server');
                 }
                 
-                console.log('🔍 [REAL] Escrow details:', escrowDetails);
+                console.log('🔍 Escrow account:', escrowDetails.escrowAccount);
                 
-                // Create a REAL SOL transfer to the escrow account
-                // This is a working approach that will actually open Phantom wallet
-                const wagerLamports = Math.floor(amount * solanaWeb3.LAMPORTS_PER_SOL);
-                const escrowAccount = new solanaWeb3.PublicKey(escrowDetails.escrowAccount);
+                // Calculate lamports
+                const wagerLamports = Math.floor(amount * 1000000000);
                 
-                console.log('🔍 [REAL] Creating SOL transfer transaction:', {
-                    from: fromPubkey.toString(),
-                    to: escrowAccount.toString(),
-                    amount: wagerLamports,
-                    amountSOL: amount
-                });
+                // Create connection
+                const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
                 
-                // Create a simple SOL transfer transaction that will work
+                // Create public keys
+                const fromPubkey = new solanaWeb3.PublicKey(fromAddress);
+                const toPubkey = new solanaWeb3.PublicKey(escrowDetails.escrowAccount);
+                
+                // Create transaction
                 const transaction = new solanaWeb3.Transaction().add(
                     solanaWeb3.SystemProgram.transfer({
                         fromPubkey: fromPubkey,
-                        toPubkey: escrowAccount,
+                        toPubkey: toPubkey,
                         lamports: wagerLamports,
                     })
                 );
@@ -1497,38 +1485,27 @@
                 transaction.recentBlockhash = blockhash;
                 transaction.feePayer = fromPubkey;
                 
-                console.log('🔍 [REAL] Transaction prepared:', {
-                    to: escrowAccount.toString(),
-                    amount: wagerLamports,
-                    blockhash: blockhash
-                });
+                console.log('🔍 Requesting signature from Phantom...');
                 
-                // Sign and send the transaction
-                console.log('🔍 [REAL] About to sign transaction with provider:', provider);
+                // Sign transaction
                 const signedTransaction = await provider.signTransaction(transaction);
-                console.log('✅ [REAL] Transaction signed successfully');
                 
+                // Send transaction
                 const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-                console.log('✅ [REAL] Transaction sent:', signature);
+                console.log('✅ Transaction sent:', signature);
                 
                 // Wait for confirmation
-                console.log('🔍 [REAL] Waiting for confirmation...');
                 await connection.confirmTransaction(signature, 'confirmed');
-                console.log('✅ [REAL] Transaction confirmed:', signature);
+                console.log('✅ Transaction confirmed:', signature);
                 
                 return { 
                     success: true, 
                     signature: signature,
-                    message: 'Real blockchain transaction completed!'
+                    message: 'Blockchain transaction completed!'
                 };
                 
             } catch (error) {
-                console.error('❌ [REAL] Transaction failed:', error);
-                console.error('❌ [REAL] Error details:', {
-                    name: error.name,
-                    message: error.message,
-                    stack: error.stack
-                });
+                console.error('❌ Transaction failed:', error);
                 return { 
                     success: false, 
                     error: error.message 
