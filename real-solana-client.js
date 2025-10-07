@@ -17,8 +17,16 @@ class RealSolanaGameClient {
         // Use Solana devnet for testing
         this.connection = new Connection('https://api.devnet.solana.com', 'confirmed');
         this.programId = new PublicKey('2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM');
+        
+        // Backend authority keypair for settlement
+        // In production, load this from environment variable
+        // For now, generate a new one (you should fund this wallet with devnet SOL)
+        this.authorityKeypair = Keypair.generate();
+        
         console.log('🔗 REAL Solana client connected to devnet');
         console.log('📋 Program ID:', this.programId.toString());
+        console.log('🔑 Backend Authority:', this.authorityKeypair.publicKey.toString());
+        console.log('⚠️  Fund this wallet with devnet SOL for settlement transactions!');
     }
 
     /**
@@ -183,27 +191,54 @@ class RealSolanaGameClient {
                 winner: winner || 'house',
                 isForfeit,
                 bothLost,
-                players
+                players,
+                escrowDetails
             });
             
-            // In a real implementation, this would build and send a transaction
-            // calling the settle_game instruction on the smart contract
+            const { AnchorProvider, Program, Wallet } = require('@coral-xyz/anchor');
             
-            // The smart contract would:
-            // 1. Calculate fees (2% or 5% or 100%)
-            // 2. Transfer fee to house wallet
-            // 3. Transfer remaining to winner
-            // 4. Update game account status
+            // Create backend wallet from authority keypair
+            const backendWallet = new Wallet(this.authorityKeypair);
             
-            // For now, we return success so the game completes
-            // The actual blockchain settlement will be implemented when we fix the transaction issues
+            const provider = new AnchorProvider(
+                this.connection,
+                backendWallet,
+                { commitment: 'confirmed' }
+            );
             
-            console.log(`✅ Game settlement logged (blockchain call pending implementation)`);
+            const program = new Program(idl, this.programId, provider);
+            
+            // Get account public keys
+            const gameAccount = new PublicKey(escrowDetails.gameAccount);
+            const escrowAccount = new PublicKey(escrowDetails.escrowAccount);
+            const creatorPubkey = new PublicKey(players[0]);
+            const opponentPubkey = new PublicKey(players[1]);
+            const houseWallet = new PublicKey('FRG1E6NiJ9UVN4T4v2r9hN1JzqB9r1uPuetCLXuqiRjT');
+            const winnerPubkey = winner ? new PublicKey(winner) : houseWallet;
+            
+            console.log('📝 Calling settle_game on smart contract...');
+            console.log('   Winner:', winnerPubkey.toString());
+            console.log('   Is Forfeit:', isForfeit);
+            console.log('   Both Lost:', bothLost);
+            
+            // Call settle_game instruction
+            const signature = await program.methods
+                .settleGame(winnerPubkey, isForfeit, bothLost)
+                .accounts({
+                    gameAccount: gameAccount,
+                    escrowAccount: escrowAccount,
+                    creator: creatorPubkey,
+                    opponent: opponentPubkey,
+                    houseWallet: houseWallet,
+                })
+                .rpc();
+            
+            console.log('✅ Game settled on blockchain:', signature);
             
             return { 
                 success: true,
-                signature: 'pending_implementation',
-                message: 'Game settled (blockchain pending)'
+                signature: signature,
+                message: 'Game settled on blockchain with fees distributed'
             };
         } catch (error) {
             console.error('❌ Game settlement failed:', error);
