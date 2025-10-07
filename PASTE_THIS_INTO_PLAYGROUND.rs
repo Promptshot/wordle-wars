@@ -1,31 +1,24 @@
-# 🚀 QUICK DEPLOYMENT - Deploy Your Smart Contract NOW!
-
-## Option 1: Solana Playground (Fastest - 5 minutes)
-
-1. **Go to**: https://beta.solpg.io/
-2. **Create new project**: "wordle-escrow"
-3. **Copy your smart contract code**:
-
-```rust
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
-declare_id!("WordleEscrow111111111111111111111111111111");
+declare_id!("2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM");
+
+pub const HOUSE_WALLET: &str = "FRG1E6NiJ9UVN4T4v2r9hN1JzqB9r1uPuetCLXuqiRjT";
+
+pub const WINNER_FEE_BPS: u64 = 200;
+pub const FORFEIT_FEE_BPS: u64 = 500;
 
 #[program]
 pub mod wordle_escrow {
     use super::*;
 
-    // Create a new game escrow
     pub fn create_game(ctx: Context<CreateGame>, wager_amount: u64) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         let escrow_account = &mut ctx.accounts.escrow_account;
         
-        // Validate wager amount
         require!(wager_amount > 0, ErrorCode::InvalidWager);
-        require!(wager_amount >= 22_000_000, ErrorCode::WagerTooLow); // 0.022 SOL minimum
+        require!(wager_amount >= 22_000_000, ErrorCode::WagerTooLow);
         
-        // Initialize game state
         game_account.creator = ctx.accounts.creator.key();
         game_account.wager_amount = wager_amount;
         game_account.status = GameStatus::Waiting;
@@ -33,14 +26,12 @@ pub mod wordle_escrow {
         game_account.winner = Pubkey::default();
         game_account.created_at = Clock::get()?.unix_timestamp;
         
-        // Initialize escrow account
         escrow_account.game = ctx.accounts.game_account.key();
         escrow_account.total_amount = wager_amount;
         escrow_account.creator_deposited = wager_amount;
         escrow_account.opponent_deposited = 0;
         escrow_account.created_at = Clock::get()?.unix_timestamp;
         
-        // Transfer SOL from creator to escrow
         let transfer_instruction = system_program::Transfer {
             from: ctx.accounts.creator.to_account_info(),
             to: ctx.accounts.escrow_account.to_account_info(),
@@ -57,7 +48,6 @@ pub mod wordle_escrow {
         Ok(())
     }
 
-    // Join an existing game
     pub fn join_game(ctx: Context<JoinGame>) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         let escrow_account = &mut ctx.accounts.escrow_account;
@@ -66,16 +56,13 @@ pub mod wordle_escrow {
         require!(game_account.players[1] == Pubkey::default(), ErrorCode::GameFull);
         require!(ctx.accounts.opponent.key() != game_account.creator, ErrorCode::CannotJoinOwnGame);
         
-        // Add player to game
         game_account.players[1] = ctx.accounts.opponent.key();
         game_account.status = GameStatus::Playing;
         game_account.started_at = Clock::get()?.unix_timestamp;
         
-        // Update escrow
         escrow_account.opponent_deposited = game_account.wager_amount;
         escrow_account.total_amount = game_account.wager_amount * 2;
         
-        // Transfer SOL from opponent to escrow
         let transfer_instruction = system_program::Transfer {
             from: ctx.accounts.opponent.to_account_info(),
             to: ctx.accounts.escrow_account.to_account_info(),
@@ -92,38 +79,60 @@ pub mod wordle_escrow {
         Ok(())
     }
 
-    // Settle game - distribute winnings
-    pub fn settle_game(ctx: Context<SettleGame>, winner: Pubkey) -> Result<()> {
+    pub fn settle_game(ctx: Context<SettleGame>, winner: Pubkey, is_forfeit: bool, both_lost: bool) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         let escrow_account = &mut ctx.accounts.escrow_account;
         
         require!(game_account.status == GameStatus::Playing, ErrorCode::GameNotPlaying);
-        require!(winner == game_account.players[0] || winner == game_account.players[1], ErrorCode::InvalidWinner);
         
-        // Update game state
-        game_account.winner = winner;
         game_account.status = GameStatus::Completed;
         game_account.completed_at = Clock::get()?.unix_timestamp;
         
-        // Transfer all winnings to winner
-        let winner_account = if winner == game_account.players[0] {
-            &ctx.accounts.creator
-        } else {
-            &ctx.accounts.opponent
-        };
+        let total_amount = escrow_account.total_amount;
+        let rent = Rent::get()?;
+        let min_rent = rent.minimum_balance(ctx.accounts.escrow_account.to_account_info().data_len());
         
         let escrow_info = ctx.accounts.escrow_account.to_account_info();
-        let winner_info = winner_account.to_account_info();
+        let house_info = ctx.accounts.house_wallet.to_account_info();
         
-        // Transfer all SOL from escrow to winner
-        **escrow_info.try_borrow_mut_lamports()? -= escrow_account.total_amount;
-        **winner_info.try_borrow_mut_lamports()? += escrow_account.total_amount;
+        if both_lost {
+            game_account.winner = Pubkey::default();
+            
+            let available_amount = total_amount.saturating_sub(min_rent);
+            
+            **escrow_info.try_borrow_mut_lamports()? -= available_amount;
+            **house_info.try_borrow_mut_lamports()? += available_amount;
+            
+            msg!("Both players lost! House gets {} lamports", available_amount);
+        } else {
+            require!(winner == game_account.players[0] || winner == game_account.players[1], ErrorCode::InvalidWinner);
+            game_account.winner = winner;
+            
+            let fee_bps = if is_forfeit { FORFEIT_FEE_BPS } else { WINNER_FEE_BPS };
+            
+            let available_amount = total_amount.saturating_sub(min_rent);
+            let actual_fee = (available_amount * fee_bps) / 10000;
+            let actual_winner_amount = available_amount - actual_fee;
+            
+            let winner_account = if winner == game_account.players[0] {
+                &ctx.accounts.creator
+            } else {
+                &ctx.accounts.opponent
+            };
+            let winner_info = winner_account.to_account_info();
+            
+            **escrow_info.try_borrow_mut_lamports()? -= actual_fee;
+            **house_info.try_borrow_mut_lamports()? += actual_fee;
+            
+            **escrow_info.try_borrow_mut_lamports()? -= actual_winner_amount;
+            **winner_info.try_borrow_mut_lamports()? += actual_winner_amount;
+            
+            msg!("Game settled! Winner: {} gets {} lamports, House fee: {} lamports", winner, actual_winner_amount, actual_fee);
+        }
         
-        msg!("Game settled! Winner: {} gets {} lamports", winner, escrow_account.total_amount);
         Ok(())
     }
 
-    // Cancel game - refund players
     pub fn cancel_game(ctx: Context<CancelGame>) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         let escrow_account = &mut ctx.accounts.escrow_account;
@@ -131,17 +140,63 @@ pub mod wordle_escrow {
         require!(game_account.status == GameStatus::Waiting, ErrorCode::GameNotWaiting);
         require!(ctx.accounts.creator.key() == game_account.creator, ErrorCode::Unauthorized);
         
-        // Refund creator
+        let refund_amount = escrow_account.creator_deposited;
+        
         let escrow_info = ctx.accounts.escrow_account.to_account_info();
         let creator_info = ctx.accounts.creator.to_account_info();
         
-        **escrow_info.try_borrow_mut_lamports()? -= escrow_account.creator_deposited;
-        **creator_info.try_borrow_mut_lamports()? += escrow_account.creator_deposited;
+        **escrow_info.try_borrow_mut_lamports()? -= refund_amount;
+        **creator_info.try_borrow_mut_lamports()? += refund_amount;
         
         game_account.status = GameStatus::Cancelled;
         game_account.completed_at = Clock::get()?.unix_timestamp;
         
-        msg!("Game cancelled, refunded: {} lamports", escrow_account.creator_deposited);
+        msg!("Game cancelled, refunded: {} lamports", refund_amount);
+        Ok(())
+    }
+    
+    pub fn forfeit_game(ctx: Context<ForfeitGame>, forfeiter: Pubkey) -> Result<()> {
+        let game_account = &mut ctx.accounts.game_account;
+        let escrow_account = &mut ctx.accounts.escrow_account;
+        
+        require!(game_account.status == GameStatus::Playing, ErrorCode::GameNotPlaying);
+        require!(forfeiter == game_account.players[0] || forfeiter == game_account.players[1], ErrorCode::InvalidWinner);
+        
+        let winner = if forfeiter == game_account.players[0] {
+            game_account.players[1]
+        } else {
+            game_account.players[0]
+        };
+        
+        game_account.winner = winner;
+        game_account.status = GameStatus::Completed;
+        game_account.completed_at = Clock::get()?.unix_timestamp;
+        
+        let total_amount = escrow_account.total_amount;
+        let rent = Rent::get()?;
+        let min_rent = rent.minimum_balance(ctx.accounts.escrow_account.to_account_info().data_len());
+        
+        let escrow_info = ctx.accounts.escrow_account.to_account_info();
+        let house_info = ctx.accounts.house_wallet.to_account_info();
+        
+        let available_amount = total_amount.saturating_sub(min_rent);
+        let fee_amount = (available_amount * FORFEIT_FEE_BPS) / 10000;
+        let winner_amount = available_amount - fee_amount;
+        
+        let winner_account = if winner == game_account.players[0] {
+            &ctx.accounts.creator
+        } else {
+            &ctx.accounts.opponent
+        };
+        let winner_info = winner_account.to_account_info();
+        
+        **escrow_info.try_borrow_mut_lamports()? -= fee_amount;
+        **house_info.try_borrow_mut_lamports()? += fee_amount;
+        
+        **escrow_info.try_borrow_mut_lamports()? -= winner_amount;
+        **winner_info.try_borrow_mut_lamports()? += winner_amount;
+        
+        msg!("Game forfeited! Winner: {} gets {} lamports, House fee: {} lamports", winner, winner_amount, fee_amount);
         Ok(())
     }
 }
@@ -190,11 +245,14 @@ pub struct SettleGame<'info> {
     #[account(mut)]
     pub escrow_account: Account<'info, EscrowAccount>,
     
-    /// CHECK: This is the winner account
+    #[account(mut)]
     pub creator: AccountInfo<'info>,
     
-    /// CHECK: This is the opponent account
+    #[account(mut)]
     pub opponent: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub house_wallet: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -207,6 +265,24 @@ pub struct CancelGame<'info> {
     
     #[account(mut)]
     pub escrow_account: Account<'info, EscrowAccount>,
+}
+
+#[derive(Accounts)]
+pub struct ForfeitGame<'info> {
+    #[account(mut)]
+    pub game_account: Account<'info, GameAccount>,
+    
+    #[account(mut)]
+    pub escrow_account: Account<'info, EscrowAccount>,
+    
+    #[account(mut)]
+    pub creator: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub opponent: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub house_wallet: AccountInfo<'info>,
 }
 
 #[account]
@@ -232,7 +308,7 @@ pub struct EscrowAccount {
     pub created_at: i64,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum GameStatus {
     Waiting,
     Playing,
@@ -259,56 +335,4 @@ pub enum ErrorCode {
     #[msg("Unauthorized action")]
     Unauthorized,
 }
-```
 
-4. **Update Cargo.toml**:
-```toml
-[package]
-name = "wordle-escrow"
-version = "0.1.0"
-description = "Wordle Wars Escrow Program"
-edition = "2021"
-
-[lib]
-crate-type = ["cdylib", "lib"]
-name = "wordle_escrow"
-
-[features]
-no-entrypoint = []
-no-idl = []
-no-log-ix-name = []
-cpi = ["no-entrypoint"]
-default = []
-
-[dependencies]
-anchor-lang = "0.29.0"
-```
-
-5. **Build**: Click "Build" button
-6. **Deploy**: Click "Deploy" button
-7. **Copy Program ID**: Save the deployed program ID
-
-## Step 2: Update Your Code
-
-After deployment, update these files with your real program ID:
-
-### Update Anchor.toml
-```toml
-[programs.devnet]
-wordle_escrow = "YOUR_REAL_PROGRAM_ID_HERE"
-```
-
-### Update solana-client.js (line 13)
-```javascript
-this.programId = new PublicKey('YOUR_REAL_PROGRAM_ID_HERE');
-```
-
-## Step 3: Test Real Blockchain Integration
-
-Your smart contract is now live with:
-- ✅ Real SOL transfers
-- ✅ Blockchain escrow accounts
-- ✅ Automatic winner payouts
-- ✅ Refund mechanisms
-
-**This is REAL blockchain gaming - no mocks!**
