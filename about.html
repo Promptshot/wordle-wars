@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Wordle Wars</title>
+    <link rel="icon" type="image/png" href="transparent.png">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(to bottom, #0D0D0D 0%, #1A1A1A 100%);
+            color: #FFFFFF;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .logo {
+            max-width: 300px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 800;
+            background: linear-gradient(to right, #80FF80, #FFD700);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+        }
+
+        .subtitle {
+            font-size: 20px;
+            color: #CCCCCC;
+            margin-bottom: 30px;
+        }
+
+        .content-box {
+            background: rgba(255,255,255,0.03);
+            padding: 40px;
+            border-radius: 16px;
+            border: 1px solid #333;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        h2 {
+            font-size: 32px;
+            color: #80FF80;
+            margin-bottom: 20px;
+        }
+
+        p {
+            color: #CCCCCC;
+            line-height: 1.8;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        ul {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        li {
+            color: #CCCCCC;
+            line-height: 2;
+            font-size: 16px;
+            padding-left: 30px;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #80FF80;
+            font-weight: bold;
+        }
+
+        .highlight {
+            color: #FFD700;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #80FF80 0%, #40CC40 100%);
+            color: #0D0D0D;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(128, 255, 128, 0.3);
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .fee-box {
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid #FFD700;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .fee-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .fee-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="logowithtext.png" alt="Wordle Wars" class="logo">
+            <div class="subtitle">Compete. Wager. Win.</div>
+        </div>
+
+        <div class="content-box">
+            <h2>What is Wordle Wars?</h2>
+            <p>
+                Wordle Wars is a competitive word-guessing game where you can challenge other players 
+                for real money. Create a game with your wager, wait for an opponent to join, 
+                and race to guess the secret word first.
+            </p>
+            <p>
+                Your funds are held securely on the Solana blockchain until the game completes. 
+                Winner takes the pot.
+            </p>
+        </div>
+
+        <div class="content-box">
+            <h2>How to Play</h2>
+            <ul>
+                <li>Connect your Phantom wallet</li>
+                <li>Create a game with your chosen wager (minimum 0.022 SOL)</li>
+                <li>Wait for an opponent to join</li>
+                <li>Guess the 5-letter word before your opponent (6 tries each)</li>
+                <li>Winner gets the pot</li>
+            </ul>
+        </div>
+
+        <div class="content-box">
+            <h2>Fees & Payouts</h2>
+            <div class="fee-box">
+                <div class="fee-item">
+                    <span>Win a game</span>
+                    <span class="highlight">You get 98% of pot</span>
+                </div>
+                <div class="fee-item">
+                    <span>Cancel before opponent joins</span>
+                    <span class="highlight">100% refund</span>
+                </div>
+                <div class="fee-item">
+                    <span>Platform fee</span>
+                    <span class="highlight">2% on wins</span>
+                </div>
+            </div>
+            <p style="font-size: 14px; color: #999; margin-top: 15px;">
+                All transactions happen on-chain. Your funds are always secure and verifiable.
+            </p>
+        </div>
+
+        <div class="back-link">
+            <a href="/" class="btn btn-primary">Start Playing</a>
+        </div>
+    </div>
+</body>
+</html>
+

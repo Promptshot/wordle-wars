@@ -742,9 +742,13 @@
         </div>
         
         <!-- Navigation Menu -->
-        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
-            <button class="btn btn-secondary" onclick="showScreen('about')" style="width: 100%;">About</button>
-            <button class="btn btn-secondary" disabled style="width: 100%; opacity: 0.5; cursor: not-allowed;">Rock Paper Scissors - Coming Soon</button>
+        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 12px;">
+            <a href="/about.html" style="width: 100%; text-align: center; text-decoration: none; display: block; padding: 14px; background: linear-gradient(135deg, #2A2A2A 0%, #1F1F1F 100%); border: 1px solid #80FF80; border-radius: 8px; color: #80FF80; font-weight: 600; transition: all 0.2s ease;">
+                About Wordle Wars
+            </a>
+            <div style="width: 100%; text-align: center; padding: 14px; background: rgba(255,255,255,0.02); border: 1px solid #333; border-radius: 8px; color: #666; font-weight: 600; cursor: not-allowed; opacity: 0.6;">
+                Rock Paper Scissors - Soon
+            </div>
         </div>
         
         <!-- Completed Games Section -->
@@ -777,7 +781,6 @@
                 </div>
                 <button class="btn btn-primary" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
                 <button class="btn btn-secondary" id="getDevnetSol" onclick="getDevnetSol()" style="display: none;">Get Devnet SOL</button>
-                <button class="btn btn-warning" id="clearStuckGame" onclick="clearStuckGame()" style="display: none;">Clear Stuck Games</button>
                 
                 <button class="btn btn-secondary" id="disconnectBtn" onclick="disconnectWallet()" style="display: none;">Disconnect</button>
             </div>
@@ -868,48 +871,6 @@
                 
                 <div style="text-align: center; margin-top: 30px;">
                     <button class="btn btn-danger" onclick="forfeitGame()" id="forfeitGameBtn">Forfeit Game</button>
-                </div>
-            </div>
-
-            <!-- About Page -->
-            <div class="game-section hidden" id="about">
-                <div style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
-                    <h2 class="section-title" style="text-align: center; margin-bottom: 30px;">About Wordle Wars</h2>
-                    
-                    <div style="background: rgba(255,255,255,0.05); padding: 30px; border-radius: 12px; border: 1px solid #404040;">
-                        <h3 style="color: #80FF80; margin-bottom: 15px;">What is Wordle Wars?</h3>
-                        <p style="color: #CCCCCC; line-height: 1.8; margin-bottom: 20px;">
-                            Wordle Wars is a competitive word-guessing game built on the Solana blockchain. 
-                            Challenge other players to real-money wager matches and prove your word skills.
-                        </p>
-                        
-                        <h3 style="color: #80FF80; margin-bottom: 15px; margin-top: 30px;">How It Works</h3>
-                        <ul style="color: #CCCCCC; line-height: 2; margin-bottom: 20px;">
-                            <li><strong style="color: #FFD700;">Create a Game:</strong> Set your wager (minimum 0.022 SOL) and wait for an opponent</li>
-                            <li><strong style="color: #FFD700;">Join a Game:</strong> Browse available games and join one that matches your stakes</li>
-                            <li><strong style="color: #FFD700;">Compete:</strong> You have 6 guesses to find the secret 5-letter word before your opponent</li>
-                            <li><strong style="color: #FFD700;">Win:</strong> First to guess correctly wins the pot (minus 2% platform fee)</li>
-                        </ul>
-                        
-                        <h3 style="color: #80FF80; margin-bottom: 15px; margin-top: 30px;">Smart Contract Features</h3>
-                        <ul style="color: #CCCCCC; line-height: 2; margin-bottom: 20px;">
-                            <li>100% on-chain escrow - your funds are always secure</li>
-                            <li>Cancel before opponent joins - get full refund (0% fee)</li>
-                            <li>Winner takes 98% of pot (2% platform fee)</li>
-                            <li>Forfeit penalty: 5% fee if you quit after game starts</li>
-                            <li>Both lose: pot goes to platform wallet</li>
-                        </ul>
-                        
-                        <h3 style="color: #80FF80; margin-bottom: 15px; margin-top: 30px;">Built On Solana</h3>
-                        <p style="color: #CCCCCC; line-height: 1.8; margin-bottom: 20px;">
-                            Powered by Solana's fast, low-cost blockchain. All wagers are held in a secure 
-                            Anchor smart contract and distributed automatically when games complete.
-                        </p>
-                        
-                        <div style="text-align: center; margin-top: 40px;">
-                            <button class="btn btn-primary" onclick="showScreen('lobby')" style="padding: 15px 40px;">Start Playing</button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -1367,11 +1328,6 @@
                     getDevnetSolBtn.style.display = 'inline-block';
                 }
                 
-                // Always show clear stuck game button when wallet is connected
-                const clearStuckGameBtn = document.getElementById('clearStuckGame');
-                if (clearStuckGameBtn) {
-                        clearStuckGameBtn.style.display = 'inline-block';
-                }
                 
                 // Request notification permission
                 if ('Notification' in window && Notification.permission === 'default') {
@@ -1466,10 +1422,6 @@
                     getDevnetSolBtn.style.display = 'none';
                 }
                 
-                const clearStuckGameBtn = document.getElementById('clearStuckGame');
-                if (clearStuckGameBtn) {
-                    clearStuckGameBtn.style.display = 'none';
-                }
                 
                 // Disconnect from server
                 if (socket) {
@@ -2179,35 +2131,6 @@
         
         // Game Creation
         // Function to clear stuck games
-        async function clearStuckGame() {
-            console.log('🧹 [DEBUG] Clearing stuck game state...');
-            
-            try {
-                // Call server cleanup endpoint
-                const response = await fetch(`${SERVER_URL}/api/cleanup-stuck-games`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    console.log('🧹 Server cleanup result:', result);
-                    if (result.removedCount > 0) {
-                        showSuccessMessage(`Cleaned up ${result.removedCount} stuck games`, 'lobby');
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to cleanup stuck games on server:', error);
-            }
-            
-            // Clear local game state
-            gameState.currentGame = null;
-            gameState.gameOver = false;
-            gameState.guesses = [];
-            showScreen('lobby');
-            console.log('✅ [DEBUG] Game state cleared');
-        }
-
         async function createGame() {
             console.log('🚀 [DEBUG] createGame called');
             // Check for active game
@@ -2756,7 +2679,42 @@
         }
         
         
+        // Simplify technical error messages for users
+        function simplifyErrorMessage(error) {
+            const errorStr = error.toString().toLowerCase();
+            
+            if (errorStr.includes('insufficient') || errorStr.includes('balance')) {
+                return 'Insufficient funds. Please add more SOL to your wallet.';
+            }
+            if (errorStr.includes('already have') || errorStr.includes('active game')) {
+                return 'You already have an active game.';
+            }
+            if (errorStr.includes('not found') || errorStr.includes('404')) {
+                return 'Game not found. It may have been cancelled.';
+            }
+            if (errorStr.includes('network') || errorStr.includes('connection')) {
+                return 'Network error. Please check your connection and try again.';
+            }
+            if (errorStr.includes('rejected') || errorStr.includes('user denied')) {
+                return 'Transaction cancelled.';
+            }
+            if (errorStr.includes('timeout')) {
+                return 'Request timed out. Please try again.';
+            }
+            if (errorStr.includes('already') && errorStr.includes('processed')) {
+                return 'Transaction already sent. Please wait a moment and try again.';
+            }
+            
+            // Generic fallback
+            return 'Something went wrong. Please try again.';
+        }
+        
         function showError(message, location = 'game') {
+            // Simplify the message if it looks technical
+            const userMessage = message.length > 100 || message.includes('Error:') || message.includes('0x') 
+                ? simplifyErrorMessage(message) 
+                : message;
+            
             let errorDiv;
             if (location === 'lobby') {
                 errorDiv = document.getElementById('lobbyErrorMessage');
@@ -2765,7 +2723,7 @@
             }
             
             if (errorDiv) {
-                errorDiv.textContent = message;
+                errorDiv.textContent = userMessage;
                 errorDiv.style.display = 'block';
                 errorDiv.style.color = '#FF4444';
                 errorDiv.style.background = 'rgba(255, 68, 68, 0.1)';
