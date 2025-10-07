@@ -2157,6 +2157,34 @@
                 }
             }
         }
+
+        function restoreGameGrid() {
+            // Simple function to restore the visual grid with previous guesses
+            if (!gameState.guesses || gameState.guesses.length === 0) return;
+            
+            for (let row = 0; row < gameState.guesses.length; row++) {
+                const guess = gameState.guesses[row];
+                if (!guess) continue;
+                
+                for (let col = 0; col < 5; col++) {
+                    const cell = document.getElementById(`cell-${row}-${col}`);
+                    if (cell) {
+                        const letter = guess[col];
+                        const correctLetter = gameState.word[col];
+                        
+                        cell.textContent = letter;
+                        
+                        if (letter === correctLetter) {
+                            cell.classList.add('correct');
+                        } else if (gameState.word.includes(letter)) {
+                            cell.classList.add('present');
+                        } else {
+                            cell.classList.add('absent');
+                        }
+                    }
+                }
+            }
+        }
         
         // Game End Functions
         function endGame(result) {
@@ -2356,6 +2384,9 @@
                         
                         // If game was in progress, attempt to rejoin
                         if (gameState.currentGame.status === 'playing') {
+                            // Restore the visual grid with previous guesses
+                            restoreGameGrid();
+                            
                             // Wait for socket connection before attempting rejoin
                             if (socket && socket.connected) {
                                 attemptRejoinGame();
