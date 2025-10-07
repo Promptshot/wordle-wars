@@ -1999,49 +1999,22 @@
                         console.log('   Game Account:', gameKeypair.publicKey.toString());
                         console.log('   Escrow Account:', escrowKeypair.publicKey.toString());
                         
-                        // Get fresh blockhash FIRST
-                        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
-                        console.log('🔄 Fresh blockhash obtained:', blockhash);
-                        
-                        // Build transaction
-                        const tx = await program.methods
+                        // Use Anchor's RPC method to send transaction directly
+                        // This handles blockhash, signing, and sending in one call
+                        const signature = await program.methods
                             .cancelGame()
                             .accounts({
                                 creator: provider.publicKey,
                                 gameAccount: gameKeypair.publicKey,
                                 escrowAccount: escrowKeypair.publicKey,
                             })
-                            .transaction();
+                            .rpc();
                         
-                        // Set fresh blockhash
-                        tx.recentBlockhash = blockhash;
-                        tx.feePayer = provider.publicKey;
-                        
-                        // Sign with user wallet via Phantom
-                        const signedTx = await provider.signTransaction(tx);
-                        
-                        // Send with skipPreflight to avoid duplicate detection
-                        const signature = await connection.sendRawTransaction(signedTx.serialize(), {
-                            skipPreflight: false,
-                            maxRetries: 3
-                        });
                         console.log('📤 Cancel transaction sent:', signature);
                         
                         // Mark as processed
                         recentTransactions.add(txKey);
                         setTimeout(() => recentTransactions.delete(txKey), 30000); // Remove after 30 seconds
-                        
-                        // Confirm
-                        try {
-                            await connection.confirmTransaction({
-                                signature,
-                                blockhash,
-                                lastValidBlockHeight
-                            }, 'confirmed');
-                            console.log('✅ Cancel confirmed on-chain');
-                        } catch (confirmError) {
-                            console.warn('⚠️ Confirmation timeout (transaction likely still succeeded):', confirmError.message);
-                        }
                         
                         console.log('✅ Game cancelled on blockchain, refund issued:', signature);
                         
