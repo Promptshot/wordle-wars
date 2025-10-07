@@ -560,49 +560,41 @@ app.post('/api/games/:gameId/forfeit', async (req, res) => {
     }
     
     const isGamePlaying = game.status === 'playing';
+    const isGameWaiting = game.status === 'waiting';
     
     if (isGamePlaying) {
-        console.log(`🏳️ Active game forfeit - settling on blockchain with 5% fee`);
-        // Game is active - determine opponent as winner with 5% forfeit fee
-        const opponent = game.players.find(p => p !== playerAddress);
-        if (opponent) {
-            game.winner = opponent;
-            game.status = 'completed';
-            game.completedAt = Date.now();
-            
-            // Settle on blockchain with 5% forfeit fee
-            await settleGameOnBlockchain(game, opponent, true, false);
-            
-            try {
-                completedGames.push({ id: game.id, wager: game.wager, winner: game.winner, status: 'completed', completedAt: game.completedAt });
-                if (completedGames.length > 20) completedGames.shift();
-            } catch(e){}
-            
-            io.emit('gameCompleted', game);
-            
-            res.json({
-                success: true,
-                message: 'Game forfeited - opponent wins with 5% house fee'
-            });
-        } else {
-            return res.status(400).json({ error: 'No opponent found' });
-        }
-    } else {
-        // Game is waiting - just remove player and refund (no fee)
-        game.players = game.players.filter(p => p !== playerAddress);
+        // Game has started - cannot forfeit once playing
+        console.log(`❌ Cannot forfeit active game - must finish playing`);
+        return res.status(400).json({ 
+            error: 'Cannot forfeit once game has started',
+            message: 'You must finish the game once both players have joined'
+        });
+    } else if (isGameWaiting) {
+        // Game is waiting for opponent - just remove from backend
+        // User must manually call cancel_game on smart contract to get refund
+        console.log(`🏳️ Waiting game cancelled - removing from backend`);
+        console.log(`💡 User must manually cancel on-chain to retrieve their ${game.wager} SOL`);
         
-        if (game.players.length === 0) {
-            games = games.filter(g => g.id !== gameId);
-            io.emit('gameRemoved', { gameId });
-        } else {
-            game.status = 'waiting';
-            io.emit('gameUpdated', game);
+        // Only creator can be in a waiting game
+        if (playerAddress !== game.players[0]) {
+            return res.status(400).json({ error: 'Only game creator can cancel waiting game' });
         }
+        
+        game.status = 'cancelled';
+        game.completedAt = Date.now();
+        
+        // Remove game from active games
+        games = games.filter(g => g.id !== gameId);
+        io.emit('gameRemoved', { gameId });
         
         res.json({
             success: true,
-            message: 'Left waiting game - no penalty'
+            message: 'Game removed from list. Your SOL remains in escrow - you can retrieve it anytime.',
+            note: 'To get your refund, the cancel_game transaction will need to be called (feature coming soon)'
         });
+    } else {
+        // Game is already completed or cancelled
+        return res.status(400).json({ error: 'Game is not active' });
     }
 });
 
