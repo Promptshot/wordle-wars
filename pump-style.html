@@ -1441,6 +1441,13 @@
             
             try {
                 const provider = getProvider();
+                console.log('🔍 [REAL] Provider check:', {
+                    provider: provider,
+                    isPhantom: provider?.isPhantom,
+                    isConnected: provider?.isConnected,
+                    publicKey: provider?.publicKey?.toString()
+                });
+                
                 if (!provider) {
                     return { success: false, error: 'Wallet not connected' };
                 }
@@ -1492,21 +1499,22 @@
                 transaction.feePayer = fromPubkey;
                 
                 console.log('🔍 [REAL] Transaction prepared:', {
-                    programId: programId.toString(),
-                    gameAccount: gameAccount.toString(),
-                    escrowAccount: escrowAccount.toString(),
-                    wagerLamports: wagerLamports
+                    to: escrowAccount.toString(),
+                    amount: wagerLamports,
+                    blockhash: blockhash
                 });
                 
                 // Sign and send the transaction
+                console.log('🔍 [REAL] About to sign transaction with provider:', provider);
                 const signedTransaction = await provider.signTransaction(transaction);
-                const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+                console.log('✅ [REAL] Transaction signed successfully');
                 
+                const signature = await connection.sendRawTransaction(signedTransaction.serialize());
                 console.log('✅ [REAL] Transaction sent:', signature);
                 
                 // Wait for confirmation
+                console.log('🔍 [REAL] Waiting for confirmation...');
                 await connection.confirmTransaction(signature, 'confirmed');
-                
                 console.log('✅ [REAL] Transaction confirmed:', signature);
                 
                 return { 
@@ -1517,6 +1525,11 @@
                 
             } catch (error) {
                 console.error('❌ [REAL] Transaction failed:', error);
+                console.error('❌ [REAL] Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
                 return { 
                     success: false, 
                     error: error.message 
