@@ -1538,17 +1538,22 @@
                     signature = await connection.sendRawTransaction(signedTx.serialize());
                     console.log('📤 Transaction sent:', signature);
                     
-                    // Confirm with timeout (don't fail if confirmation times out)
+                    // Confirm and verify transaction succeeded
                     try {
-                        await connection.confirmTransaction({
+                        const confirmation = await connection.confirmTransaction({
                             signature,
                             blockhash,
                             lastValidBlockHeight
                         }, 'confirmed');
-                        console.log('✅ Transaction confirmed on-chain');
+                        
+                        if (confirmation.value.err) {
+                            throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+                        }
+                        
+                        console.log('✅ Transaction confirmed and succeeded on-chain');
                     } catch (confirmError) {
-                        console.warn('⚠️ Confirmation timeout (transaction likely still succeeded):', confirmError.message);
-                        // Continue anyway - transaction was sent successfully
+                        console.error('❌ Transaction failed or confirmation error:', confirmError.message);
+                        throw confirmError; // Re-throw to trigger error handling
                     }
                     
                 } else if (type === 'join_game') {
@@ -1577,17 +1582,22 @@
                     signature = await connection.sendRawTransaction(signedTx.serialize());
                     console.log('📤 Transaction sent:', signature);
                     
-                    // Confirm (don't fail if confirmation times out)
+                    // Confirm and verify transaction succeeded
                     try {
-                        await connection.confirmTransaction({
+                        const confirmation = await connection.confirmTransaction({
                             signature,
                             blockhash,
                             lastValidBlockHeight
                         }, 'confirmed');
-                        console.log('✅ Transaction confirmed on-chain');
+                        
+                        if (confirmation.value.err) {
+                            throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+                        }
+                        
+                        console.log('✅ Transaction confirmed and succeeded on-chain');
                     } catch (confirmError) {
-                        console.warn('⚠️ Confirmation timeout (transaction likely still succeeded):', confirmError.message);
-                        // Continue anyway - transaction was sent successfully
+                        console.error('❌ Transaction failed or confirmation error:', confirmError.message);
+                        throw confirmError; // Re-throw to trigger error handling
                     }
                 }
                 
