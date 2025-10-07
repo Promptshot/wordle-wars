@@ -322,7 +322,7 @@ app.post('/api/games', async (req, res) => {
 });
 
 // Update blockchain transaction status
-app.post('/api/games/:gameId/confirm-blockchain', (req, res) => {
+app.post('/api/games/:gameId/confirm-blockchain', async (req, res) => {
     const { gameId } = req.params;
     const { signature, success } = req.body;
     
@@ -332,10 +332,17 @@ app.post('/api/games/:gameId/confirm-blockchain', (req, res) => {
     }
     
     if (success) {
+        console.log(`✅ Blockchain transaction confirmed for game ${gameId}: ${signature}`);
+        console.log(`⏳ Waiting 3 seconds for blockchain state to finalize...`);
+        
+        // Wait for blockchain state to finalize before making game available
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
         // Update game status to confirmed
         game.blockchainStatus = 'signed';
         game.blockchainSignature = signature;
-        console.log(`✅ Blockchain transaction confirmed for game ${gameId}: ${signature}`);
+        
+        console.log(`✅ Game ${gameId} now available for joining`);
         
         // Broadcast update to all clients
         io.emit('gameUpdated', game);
