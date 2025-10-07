@@ -391,44 +391,60 @@ app.post('/api/games/:gameId/join', async (req, res) => {
         return res.status(400).json({ error: 'You are already in another game' });
     }
     
-    // Join validation passed, adding player to game
-    game.players.push(playerAddress);
-    game.status = 'playing';
-    game.startedAt = Date.now();
+    // Return escrow details instead of joining immediately
+    console.log(`🎮 Player 2 requesting to join: ${playerAddress} in game ${gameId}`);
     
-    // Add player to blockchain escrow
-    try {
-        const joinResult = await solanaClient.joinGameEscrow(playerAddress, game.wager, game.escrowId);
-        
-        if (!joinResult.success) {
-            // Remove player from game if blockchain join fails
-            game.players.pop();
-            game.status = 'waiting';
-            delete game.startedAt;
-            return res.status(400).json({ error: 'Blockchain error: ' + joinResult.error });
-        }
-        
-        game.blockchainStatus = 'both_players_joined';
-        console.log(`🎮 Player joined blockchain escrow: ${playerAddress} in game ${gameId}`);
-    } catch (error) {
-        console.error('❌ Blockchain join failed:', error);
-        // Remove player from game if blockchain join fails
-        game.players.pop();
-        game.status = 'waiting';
-        delete game.startedAt;
-        return res.status(500).json({ error: 'Failed to join blockchain escrow' });
+    res.json({
+        success: true,
+        gameId: game.id,
+        wager: game.wager,
+        requiresSignature: true,
+        escrowDetails: game.escrowDetails,
+        message: 'Please sign transaction to join game'
+    });
+});
+
+// Confirm Player 2 joined after blockchain transaction
+app.post('/api/games/:gameId/confirm-join', (req, res) => {
+    const { gameId} = req.params;
+    const { signature, success, playerAddress } = req.body;
+    
+    const game = games.find(g => g.id === gameId);
+    if (!game) {
+        return res.status(404).json({ error: 'Game not found' });
     }
     
-    // Broadcast to all connected clients
-    io.emit('gameJoined', game);
-    // Track wallet as connected/active
-    try {
-        if (playerAddress) connectedWallets.add(playerAddress);
-        io.emit('connectedWallets', Array.from(connectedWallets));
-    } catch (e) {}
-    
-    // Player joined game successfully
-    res.json(game);
+    if (success) {
+        // Add player to game
+        game.players.push(playerAddress);
+        game.status = 'playing';
+        game.startedAt = Date.now();
+        game.joinSignature = signature;
+        
+        console.log(`✅ Player 2 joined with blockchain confirmation: ${playerAddress}`);
+        console.log(`✅ Join transaction signature: ${signature}`);
+        
+        // Broadcast to all clients that game is starting
+        io.emit('gameStarted', game);
+        
+        // Track wallet
+        try {
+            if (playerAddress) connectedWallets.add(playerAddress);
+            io.emit('connectedWallets', Array.from(connectedWallets));
+        } catch (e) {}
+        
+        res.json({ 
+            success: true, 
+            message: 'Successfully joined game',
+            game: game
+        });
+    } else {
+        console.log(`❌ Player 2 join failed for game ${gameId}`);
+        res.json({ 
+            success: false, 
+            message: 'Failed to join game - blockchain transaction failed' 
+        });
+    }
 });
 
 // Airdrop endpoint for testing

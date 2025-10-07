@@ -2065,7 +2065,7 @@
             joinBtn.disabled = true;
             
             try {
-                // Join game on server
+                // Request join details from server
                 const response = await fetch(`${SERVER_URL}/api/games/${gameId}/join`, {
                     method: 'POST',
                     headers: {
@@ -2081,29 +2081,79 @@
                     throw new Error(error.error || 'Failed to join game');
                 }
                 
-                const game = await response.json();
+                const joinData = await response.json();
+                console.log('🎮 Join data received:', joinData);
                 
-                // Update game state
-                gameState.currentGame = game;
-                gameState.isPlayer1 = false;
-                gameState.word = game.word;
-                gameState.gameOver = false;
-                gameState.guesses = [];
-                gameState.playerResult = null;
-                gameState.opponentResult = null;
-                gameState.timeLeft = 300;
-                
-                // Clear any existing timer
-                if (gameState.timer) {
-                    clearInterval(gameState.timer);
-                    gameState.timer = null;
+                // If blockchain signature required
+                if (joinData.requiresSignature) {
+                    console.log('🔐 Join requires signature, requesting wallet signature...');
+                    showSuccessMessage('Please sign the transaction to join this game...', 'lobby');
+                    
+                    try {
+                        // Sign blockchain transaction
+                        const txResult = await createBlockchainTransaction(
+                            gameState.walletAddress, 
+                            joinData.wager, 
+                            'join_game', 
+                            joinData
+                        );
+                        
+                        if (!txResult.success) {
+                            console.error('❌ Join transaction failed:', txResult.error);
+                            throw new Error('Blockchain transaction failed: ' + txResult.error);
+                        }
+                        
+                        console.log('✅ Join transaction confirmed:', txResult.signature);
+                        
+                        // Confirm join with server
+                        const confirmResponse = await fetch(`${SERVER_URL}/api/games/${gameId}/confirm-join`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                success: true, 
+                                signature: txResult.signature,
+                                playerAddress: gameState.walletAddress
+                            })
+                        });
+                        
+                        if (!confirmResponse.ok) {
+                            throw new Error('Failed to confirm join with server');
+                        }
+                        
+                        const confirmResult = await confirmResponse.json();
+                        console.log('✅ Join confirmed:', confirmResult);
+                        
+                        const game = confirmResult.game;
+                        
+                        // Update game state
+                        gameState.currentGame = game;
+                        gameState.isPlayer1 = false;
+                        gameState.word = game.word;
+                        gameState.gameOver = false;
+                        gameState.guesses = [];
+                        gameState.playerResult = null;
+                        gameState.opponentResult = null;
+                        gameState.timeLeft = 300;
+                        
+                        // Clear any existing timer
+                        if (gameState.timer) {
+                            clearInterval(gameState.timer);
+                            gameState.timer = null;
+                        }
+                        
+                        showSuccessMessage('Blockchain transaction signed! Joined game successfully!', 'lobby');
+                        
+                        // Automatically show game room when joining
+                        showGameRoom();
+                        startGame();
+                        saveGameState();
+                        checkActiveGame();
+                        
+                    } catch (error) {
+                        console.error('❌ Error in join blockchain transaction:', error);
+                        throw new Error('Join transaction error: ' + error.message);
+                    }
                 }
-                
-                // Automatically show game room when joining
-                showGameRoom();
-                startGame();
-                saveGameState();
-                checkActiveGame();
                 
             } catch (error) {
                 showError(error.message || 'Failed to join game. Please try again.', 'lobby');
