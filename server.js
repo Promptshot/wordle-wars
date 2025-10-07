@@ -229,9 +229,9 @@ app.post('/api/games', async (req, res) => {
     const gameId = 'game_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     const word = words[Math.floor(Math.random() * words.length)];
     
-    // Create blockchain escrow FIRST - don't create game until blockchain is ready
+    // Prepare blockchain escrow details for frontend - NO GAME CREATED YET
     try {
-        console.log('🎮 Creating blockchain escrow for:', playerAddress, 'wager:', wager);
+        console.log('🎮 Preparing blockchain escrow for:', playerAddress, 'wager:', wager);
         const escrowResult = await solanaClient.createGameEscrow(playerAddress, parseFloat(wager));
         console.log('🔍 Escrow result:', escrowResult);
         
@@ -239,43 +239,33 @@ app.post('/api/games', async (req, res) => {
             return res.status(400).json({ error: 'Blockchain error: ' + escrowResult.error });
         }
         
-        // Only create the game object AFTER blockchain escrow is prepared
-        const newGame = {
-            id: gameId,
-            wager: parseFloat(wager),
-            players: [playerAddress],
-            status: 'waiting',
+        // Return escrow details for frontend to sign - NO GAME IN DATABASE YET
+        const escrowDetails = {
+            gameId: gameId,
             word: word,
-            createdAt: Date.now(),
-            guesses: [],
-            playerResults: {},
             escrowId: escrowResult.escrowId,
-            blockchainStatus: 'escrow_created',
             requiresSignature: escrowResult.requiresSignature || false,
             escrowAddress: escrowResult.escrowAddress,
-            // Pass escrow details to frontend for transaction creation
-            escrowDetails: {
-                programId: escrowResult.programId,
-                gameAccount: escrowResult.gameAccount,
-                escrowAccount: escrowResult.escrowAccount,
-                escrowType: escrowResult.escrowType,
-                wagerAmount: escrowResult.wagerAmount,
-                transferAmount: escrowResult.transferAmount
-            }
+            programId: escrowResult.programId,
+            gameAccount: escrowResult.gameAccount,
+            escrowAccount: escrowResult.escrowAccount,
+            escrowType: escrowResult.escrowType,
+            wagerAmount: escrowResult.wagerAmount,
+            transferAmount: escrowResult.transferAmount
         };
         
-        // Add to games array ONLY after blockchain is prepared
-        games.push(newGame);
+        console.log(`🎮 Escrow prepared for signature: ${gameId}, requiresSignature: ${escrowDetails.requiresSignature}`);
         
-        console.log(`🎮 Game created with blockchain escrow: ${gameId}, requiresSignature: ${newGame.requiresSignature}`);
-        
-        // Broadcast to all connected clients
-        io.emit('gameCreated', newGame);
-        
-        res.json(newGame);
+        // Return escrow details - game will be created AFTER successful signature
+        res.json({
+            success: true,
+            message: 'Escrow prepared - signature required',
+            requiresSignature: true,
+            escrowDetails: escrowDetails
+        });
     } catch (error) {
         console.error('❌ Blockchain integration failed:', error);
-        return res.status(500).json({ error: 'Failed to create blockchain escrow' });
+        return res.status(500).json({ error: 'Failed to prepare blockchain escrow' });
     }
     
     // Track wallet as connected/active
@@ -285,35 +275,57 @@ app.post('/api/games', async (req, res) => {
     } catch (e) {}
 });
 
-// New endpoint to confirm blockchain transaction was successful
+// New endpoint to confirm blockchain transaction and CREATE the game
 app.post('/api/games/:gameId/confirm-blockchain', (req, res) => {
     const { gameId } = req.params;
-    const { signature, success } = req.body;
-    
-    const game = games.find(g => g.id === gameId);
-    if (!game) {
-        return res.status(404).json({ error: 'Game not found' });
-    }
+    const { signature, success, escrowDetails } = req.body;
     
     if (success) {
-        // Update game status to indicate blockchain transaction was successful
-        game.blockchainStatus = 'transaction_confirmed';
-        game.blockchainSignature = signature;
-        console.log(`✅ Blockchain transaction confirmed for game ${gameId}: ${signature}`);
+        // CREATE the game ONLY after successful blockchain signature
+        const newGame = {
+            id: gameId,
+            wager: parseFloat(escrowDetails.wagerAmount),
+            players: [req.body.playerAddress], // Get from request body
+            status: 'waiting',
+            word: escrowDetails.word,
+            createdAt: Date.now(),
+            guesses: [],
+            playerResults: {},
+            escrowId: escrowDetails.escrowId,
+            blockchainStatus: 'transaction_confirmed',
+            blockchainSignature: signature,
+            escrowAddress: escrowDetails.escrowAddress,
+            escrowDetails: {
+                programId: escrowDetails.programId,
+                gameAccount: escrowDetails.gameAccount,
+                escrowAccount: escrowDetails.escrowAccount,
+                escrowType: escrowDetails.escrowType,
+                wagerAmount: escrowDetails.wagerAmount,
+                transferAmount: escrowDetails.transferAmount
+            }
+        };
         
-        // Broadcast update to all clients
-        io.emit('gameUpdated', game);
+        // Add to games array ONLY after successful blockchain signature
+        games.push(newGame);
         
-        res.json({ success: true, message: 'Blockchain transaction confirmed' });
+        console.log(`✅ Game CREATED after successful blockchain signature: ${gameId}: ${signature}`);
+        
+        // Broadcast new game to all clients
+        io.emit('gameCreated', newGame);
+        
+        res.json({ 
+            success: true, 
+            message: 'Game created after successful blockchain transaction',
+            game: newGame
+        });
     } else {
-        // Remove the game if blockchain transaction failed
-        games = games.filter(g => g.id !== gameId);
-        console.log(`❌ Blockchain transaction failed for game ${gameId}, game removed`);
+        // No game to remove since it was never created
+        console.log(`❌ Blockchain transaction failed for game ${gameId} - no game created`);
         
-        // Broadcast that the game was removed
-        io.emit('gameRemoved', { gameId });
-        
-        res.json({ success: false, message: 'Game removed due to failed blockchain transaction' });
+        res.json({ 
+            success: false, 
+            message: 'Blockchain transaction failed - no game created' 
+        });
     }
 });
 
