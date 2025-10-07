@@ -1450,7 +1450,16 @@
                 
                 // Get escrow details from game data
                 const escrowDetails = gameData?.escrowDetails || gameState.currentGame?.escrowDetails;
+                console.log('🔍 [REAL] Full gameData:', gameData);
+                console.log('🔍 [REAL] Escrow details found:', escrowDetails);
+                
                 if (!escrowDetails) {
+                    console.error('❌ [REAL] No escrow details found in:', {
+                        gameData: gameData,
+                        currentGame: gameState.currentGame,
+                        gameDataEscrow: gameData?.escrowDetails,
+                        currentGameEscrow: gameState.currentGame?.escrowDetails
+                    });
                     throw new Error('No escrow details provided by server');
                 }
                 

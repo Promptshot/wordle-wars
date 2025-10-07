@@ -120,6 +120,7 @@ class RealSolanaGameClient {
                 escrowAccount: escrowAccount.publicKey.toString(),
                 wagerAmount,
                 wagerLamports,
+                transferAmount: wagerAmount, // Add this for the frontend
                 message: 'REAL blockchain game - transaction signature required',
                 requiresSignature: true,
                 // Real Anchor program details
