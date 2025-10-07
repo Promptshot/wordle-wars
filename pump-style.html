@@ -1515,43 +1515,19 @@
                     console.log('📝 Calling create_game via Anchor SDK...');
                     console.log('📝 Wager amount:', wagerLamports.toString(), 'lamports');
                     
-                    try {
-                        // Use Anchor's .rpc() method - it handles everything
-                        signature = await program.methods
-                            .createGame(wagerLamports)
-                            .accounts({
-                                creator: provider.publicKey,
-                                gameAccount: gameKeypair.publicKey,
-                                escrowAccount: escrowKeypair.publicKey,
-                                systemProgram: solanaWeb3.SystemProgram.programId,
-                            })
-                            .signers([gameKeypair, escrowKeypair])
-                            .rpc();
-                        
-                        console.log('📤 Transaction sent and confirmed:', signature);
-                    } catch (rpcError) {
-                        // If we get "already processed" error, wait 1 second and retry ONCE
-                        if (rpcError.message && rpcError.message.includes('already been processed')) {
-                            console.warn('⚠️ Transaction already processed, waiting 1s and retrying...');
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                            
-                            // Retry with fresh connection
-                            signature = await program.methods
-                                .createGame(wagerLamports)
-                                .accounts({
-                                    creator: provider.publicKey,
-                                    gameAccount: gameKeypair.publicKey,
-                                    escrowAccount: escrowKeypair.publicKey,
-                                    systemProgram: solanaWeb3.SystemProgram.programId,
-                                })
-                                .signers([gameKeypair, escrowKeypair])
-                                .rpc();
-                            
-                            console.log('✅ Retry successful:', signature);
-                        } else {
-                            throw rpcError;
-                        }
-                    }
+                    // Use Anchor's .rpc() method - it handles everything
+                    signature = await program.methods
+                        .createGame(wagerLamports)
+                        .accounts({
+                            creator: provider.publicKey,
+                            gameAccount: gameKeypair.publicKey,
+                            escrowAccount: escrowKeypair.publicKey,
+                            systemProgram: solanaWeb3.SystemProgram.programId,
+                        })
+                        .signers([gameKeypair, escrowKeypair])
+                        .rpc();
+                    
+                    console.log('📤 Transaction sent and confirmed:', signature);
                     
                 } else if (type === 'join_game') {
                     console.log('📝 Calling join_game via Anchor SDK...');
@@ -2233,7 +2209,25 @@
                         
                         if (!txResult.success) {
                             console.error('❌ [DEBUG] Transaction failed:', txResult.error);
-                            // Notify server that blockchain transaction failed
+                            
+                            // Check if it's a "double-click" or "already in use" error
+                            if (txResult.error && (txResult.error.includes('already in use') || txResult.error.includes('already been processed'))) {
+                                console.warn('⚠️ Account conflict detected - likely a double-click or network issue');
+                                // Notify server to cleanup
+                                try {
+                                    await fetch(`${SERVER_URL}/api/games/${newGame.id}/confirm-blockchain`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ success: false, error: 'Account already in use' })
+                                    });
+                                } catch (e) {
+                                    console.error('Failed to notify server of blockchain failure:', e);
+                                }
+                                showError('Transaction conflict. Please wait a moment and try again. If you already created a game, check your balance - it may have succeeded.', 'lobby');
+                                return;
+                            }
+                            
+                            // Other errors - notify server
                             try {
                                 await fetch(`${SERVER_URL}/api/games/${newGame.id}/confirm-blockchain`, {
                                     method: 'POST',
