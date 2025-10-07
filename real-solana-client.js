@@ -19,9 +19,26 @@ class RealSolanaGameClient {
         this.programId = new PublicKey('2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM');
         
         // Backend authority keypair for settlement
-        // In production, load this from environment variable
-        // For now, generate a new one (you should fund this wallet with devnet SOL)
-        this.authorityKeypair = Keypair.generate();
+        // Use a fixed keypair (in production, load from environment variable)
+        const FIXED_SECRET_KEY = process.env.BACKEND_AUTHORITY_SECRET_KEY;
+        
+        if (FIXED_SECRET_KEY) {
+            // Load from environment variable
+            const secretKeyArray = JSON.parse(FIXED_SECRET_KEY);
+            this.authorityKeypair = Keypair.fromSecretKey(new Uint8Array(secretKeyArray));
+            console.log('🔑 Backend Authority loaded from environment');
+        } else {
+            // Generate a fixed keypair for development
+            // This is a FIXED keypair that won't change (DO NOT use in production!)
+            const FIXED_DEV_SECRET = [
+                174, 47, 154, 16, 202, 193, 206, 113, 199, 190, 53, 133, 169, 175, 31, 56,
+                222, 53, 138, 189, 224, 216, 117, 173, 10, 149, 53, 133, 169, 175, 31, 56,
+                137, 224, 32, 90, 127, 234, 31, 137, 113, 123, 234, 90, 127, 21, 90, 234,
+                32, 90, 127, 234, 31, 137, 113, 123, 234, 90, 127, 21, 90, 234, 32, 90
+            ];
+            this.authorityKeypair = Keypair.fromSecretKey(new Uint8Array(FIXED_DEV_SECRET));
+            console.log('⚠️  Using FIXED dev keypair (not for production!)');
+        }
         
         console.log('🔗 REAL Solana client connected to devnet');
         console.log('📋 Program ID:', this.programId.toString());
