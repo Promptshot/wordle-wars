@@ -101,6 +101,9 @@ class RealSolanaGameClient {
             const gameAccount = Keypair.generate();
             const escrowAccount = Keypair.generate();
             
+            // For now, we'll use a simple escrow approach
+            // The escrow account will receive the SOL transfer directly
+            
             // Convert wager to lamports
             const wagerLamports = Math.floor(wagerAmount * LAMPORTS_PER_SOL);
             

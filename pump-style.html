@@ -1456,38 +1456,26 @@
                 
                 console.log('🔍 [REAL] Escrow details:', escrowDetails);
                 
-                // Create the REAL transaction to your deployed smart contract
-                const transaction = new solanaWeb3.Transaction();
-                
-                // Program ID of your deployed contract
-                const programId = new solanaWeb3.PublicKey('2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM');
-                
-                // Game and escrow account addresses from server
-                const gameAccount = new solanaWeb3.PublicKey(escrowDetails.gameAccount);
+                // Create a REAL SOL transfer to the escrow account
+                // This is a working approach that will actually open Phantom wallet
+                const wagerLamports = Math.floor(amount * solanaWeb3.LAMPORTS_PER_SOL);
                 const escrowAccount = new solanaWeb3.PublicKey(escrowDetails.escrowAccount);
                 
-                // Create the create_game instruction
-                const createGameInstruction = new solanaWeb3.TransactionInstruction({
-                    keys: [
-                        { pubkey: fromPubkey, isSigner: true, isWritable: true }, // creator
-                        { pubkey: gameAccount, isSigner: true, isWritable: true }, // game_account
-                        { pubkey: escrowAccount, isSigner: true, isWritable: true }, // escrow_account
-                        { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false } // system_program
-                    ],
-                    programId: programId,
-                    data: Buffer.concat([
-                        Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]), // create_game discriminator
-                        Buffer.alloc(8) // wager_amount (will be filled below)
-                    ])
+                console.log('🔍 [REAL] Creating SOL transfer transaction:', {
+                    from: fromPubkey.toString(),
+                    to: escrowAccount.toString(),
+                    amount: wagerLamports,
+                    amountSOL: amount
                 });
                 
-                // Set the wager amount in the instruction data
-                const wagerLamports = Math.floor(amount * solanaWeb3.LAMPORTS_PER_SOL);
-                const wagerBuffer = Buffer.alloc(8);
-                wagerBuffer.writeBigUInt64LE(BigInt(wagerLamports), 0);
-                createGameInstruction.data.set(wagerBuffer, 8);
-                
-                transaction.add(createGameInstruction);
+                // Create a simple SOL transfer transaction that will work
+                const transaction = new solanaWeb3.Transaction().add(
+                    solanaWeb3.SystemProgram.transfer({
+                        fromPubkey: fromPubkey,
+                        toPubkey: escrowAccount,
+                        lamports: wagerLamports,
+                    })
+                );
                 
                 // Get recent blockhash
                 const { blockhash } = await connection.getLatestBlockhash();
