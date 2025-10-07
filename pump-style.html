@@ -1446,7 +1446,7 @@
         }
 
         async function createBlockchainTransaction(fromAddress, amount, type, gameData = null) {
-            console.log('🚀 [ANCHOR PROGRAM] createBlockchainTransaction called');
+            console.log('🚀 [ANCHOR SDK] createBlockchainTransaction called');
             console.log('🔍 Type:', type);
             
             try {
@@ -1464,22 +1464,27 @@
                 console.log('🔍 Escrow details:', escrowDetails);
                 
                 // Calculate lamports
-                const wagerLamports = Math.floor(amount * 1000000000);
+                const wagerLamports = new anchor.BN(Math.floor(amount * 1000000000));
                 
-                // Create connection
+                // Create connection and Anchor provider
                 const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
+                const wallet = {
+                    publicKey: provider.publicKey,
+                    signTransaction: (tx) => provider.signTransaction(tx),
+                    signAllTransactions: (txs) => provider.signAllTransactions(txs),
+                };
+                const anchorProvider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' });
                 
-                // Program ID
+                // Load IDL (we need to fetch it or embed it)
+                const idl = await (await fetch('/wordle-escrow-idl.json')).json();
+                
+                // Create Anchor program instance
                 const programId = new solanaWeb3.PublicKey(escrowDetails.programId);
+                const program = new anchor.Program(idl, programId, anchorProvider);
                 
-                // User wallet
-                const userPubkey = new solanaWeb3.PublicKey(fromAddress);
+                console.log('🔍 Anchor Program initialized:', programId.toString());
                 
-                // Game and Escrow accounts (from server keypairs)
-                const gameAccountPubkey = new solanaWeb3.PublicKey(escrowDetails.gameAccount);
-                const escrowAccountPubkey = new solanaWeb3.PublicKey(escrowDetails.escrowAccount);
-                
-                // Get game and escrow keypairs from server
+                // Get keypairs from server
                 const gameKeypair = solanaWeb3.Keypair.fromSecretKey(
                     new Uint8Array(escrowDetails.gameKeypair.secretKey)
                 );
@@ -1487,95 +1492,39 @@
                     new Uint8Array(escrowDetails.escrowKeypair.secretKey)
                 );
                 
-                console.log('🔍 Program ID:', programId.toString());
-                console.log('🔍 Game Account:', gameAccountPubkey.toString());
-                console.log('🔍 Escrow Account:', escrowAccountPubkey.toString());
+                console.log('🔍 Game Account:', gameKeypair.publicKey.toString());
+                console.log('🔍 Escrow Account:', escrowKeypair.publicKey.toString());
                 
-                let transaction;
+                let signature;
                 
                 if (type === 'create_game') {
-                    // Build create_game instruction using proper Anchor discriminator
-                    console.log('📝 Building create_game instruction...');
+                    console.log('📝 Calling create_game via Anchor SDK...');
                     
-                    // Calculate discriminator: first 8 bytes of SHA256("global:create_game")
-                    const encoder = new TextEncoder();
-                    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode('global:create_game'));
-                    const discriminator = new Uint8Array(hashBuffer).slice(0, 8);
-                    
-                    // Encode wager_amount as u64 little-endian
-                    const wagerBuffer = new ArrayBuffer(8);
-                    const view = new DataView(wagerBuffer);
-                    view.setBigUint64(0, BigInt(wagerLamports), true); // true = little-endian
-                    
-                    // Combine discriminator + wager_amount
-                    const data = new Uint8Array(16);
-                    data.set(discriminator, 0);
-                    data.set(new Uint8Array(wagerBuffer), 8);
-                    
-                    console.log('🔍 Discriminator:', Array.from(discriminator));
-                    console.log('🔍 Data:', Array.from(data));
-                    
-                    // Create instruction
-                    const instruction = new solanaWeb3.TransactionInstruction({
-                        keys: [
-                            { pubkey: userPubkey, isSigner: true, isWritable: true }, // creator
-                            { pubkey: gameAccountPubkey, isSigner: true, isWritable: true }, // game_account
-                            { pubkey: escrowAccountPubkey, isSigner: true, isWritable: true }, // escrow_account
-                            { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
-                        ],
-                        programId: programId,
-                        data: Buffer.from(data)
-                    });
-                    
-                    transaction = new solanaWeb3.Transaction().add(instruction);
+                    signature = await program.methods
+                        .createGame(wagerLamports)
+                        .accounts({
+                            creator: provider.publicKey,
+                            gameAccount: gameKeypair.publicKey,
+                            escrowAccount: escrowKeypair.publicKey,
+                            systemProgram: solanaWeb3.SystemProgram.programId,
+                        })
+                        .signers([gameKeypair, escrowKeypair])
+                        .rpc();
                     
                 } else if (type === 'join_game') {
-                    // Build join_game instruction
-                    console.log('📝 Building join_game instruction...');
+                    console.log('📝 Calling join_game via Anchor SDK...');
                     
-                    // Calculate discriminator: first 8 bytes of SHA256("global:join_game")
-                    const encoder = new TextEncoder();
-                    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode('global:join_game'));
-                    const discriminator = new Uint8Array(hashBuffer).slice(0, 8);
-                    
-                    console.log('🔍 Join discriminator:', Array.from(discriminator));
-                    
-                    // Create instruction
-                    const instruction = new solanaWeb3.TransactionInstruction({
-                        keys: [
-                            { pubkey: userPubkey, isSigner: true, isWritable: true }, // opponent
-                            { pubkey: gameAccountPubkey, isSigner: false, isWritable: true }, // game_account
-                            { pubkey: escrowAccountPubkey, isSigner: false, isWritable: true }, // escrow_account
-                            { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
-                        ],
-                        programId: programId,
-                        data: Buffer.from(discriminator)
-                    });
-                    
-                    transaction = new solanaWeb3.Transaction().add(instruction);
+                    signature = await program.methods
+                        .joinGame()
+                        .accounts({
+                            opponent: provider.publicKey,
+                            gameAccount: gameKeypair.publicKey,
+                            escrowAccount: escrowKeypair.publicKey,
+                            systemProgram: solanaWeb3.SystemProgram.programId,
+                        })
+                        .rpc();
                 }
                 
-                // Get recent blockhash
-                const { blockhash } = await connection.getLatestBlockhash();
-                transaction.recentBlockhash = blockhash;
-                transaction.feePayer = userPubkey;
-                
-                console.log('🔍 Requesting signature from Phantom...');
-                
-                // Sign transaction with user wallet
-                const signedByUser = await provider.signTransaction(transaction);
-                
-                // Also sign with game and escrow keypairs (for create_game)
-                if (type === 'create_game') {
-                    signedByUser.partialSign(gameKeypair, escrowKeypair);
-                }
-                
-                // Send transaction
-                const signature = await connection.sendRawTransaction(signedByUser.serialize());
-                console.log('✅ Transaction sent:', signature);
-                
-                // Wait for confirmation
-                await connection.confirmTransaction(signature, 'confirmed');
                 console.log('✅ Transaction confirmed:', signature);
                 
                 // Update balance after successful transaction
@@ -1584,7 +1533,7 @@
                 return { 
                     success: true, 
                     signature: signature,
-                    message: 'Anchor program call completed!'
+                    message: 'Anchor SDK call completed!'
                 };
                 
             } catch (error) {

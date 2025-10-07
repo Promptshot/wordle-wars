@@ -13,13 +13,26 @@ async function settleGameOnBlockchain(game, winner, isForfeit, bothLost) {
         console.log(`💰 Settling game ${game.id} on blockchain:`, {
             winner: winner || 'none',
             isForfeit,
-            bothLost
+            bothLost,
+            escrowDetails: game.escrowDetails
         });
         
-        // TODO: Call smart contract settle_game instruction
-        // For now, just log - we'll implement this when frontend calls work
+        // Call smart contract settle_game instruction via the Solana client
+        const result = await solanaClient.settleGame(
+            game.escrowDetails,
+            game.players,
+            winner || HOUSE_WALLET,
+            isForfeit,
+            bothLost
+        );
         
-        return { success: true };
+        if (result.success) {
+            console.log(`✅ Game settled on blockchain: ${result.signature}`);
+        } else {
+            console.error(`❌ Blockchain settlement failed: ${result.error}`);
+        }
+        
+        return result;
     } catch (error) {
         console.error('❌ Blockchain settlement failed:', error);
         return { success: false, error: error.message };

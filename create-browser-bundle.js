@@ -28,10 +28,15 @@ window.Buffer = Buffer;
 // Import Solana web3.js
 import * as solanaWeb3 from '@solana/web3.js';
 
-// Make it available globally
+// Import Anchor SDK
+import * as anchor from '@coral-xyz/anchor';
+
+// Make them available globally
 window.solanaWeb3 = solanaWeb3;
+window.anchor = anchor;
 
 console.log('✅ Solana web3.js loaded successfully!');
+console.log('✅ Anchor SDK loaded successfully!');
 `;
 
 fs.writeFileSync('temp-entry.js', entryContent);
