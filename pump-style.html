@@ -1977,14 +1977,28 @@
                     console.log('🔐 Game requires signature, requesting wallet signature...');
                     showMessage('Please sign the transaction to create your game escrow...', 'success');
                     
-                    // Create and sign the blockchain transaction with the newGame data
-                    const txResult = await createBlockchainTransaction(gameState.walletAddress, wagerAmount, 'create_game', newGame);
-                    
-                    if (!txResult.success) {
-                        throw new Error('Blockchain transaction failed: ' + txResult.error);
+                    try {
+                        console.log('🔍 [DEBUG] About to call createBlockchainTransaction...');
+                        console.log('🔍 [DEBUG] Function exists:', typeof createBlockchainTransaction);
+                        
+                        if (typeof createBlockchainTransaction !== 'function') {
+                            throw new Error('createBlockchainTransaction function not found');
+                        }
+                        
+                        // Create and sign the blockchain transaction with the newGame data
+                        const txResult = await createBlockchainTransaction(gameState.walletAddress, wagerAmount, 'create_game', newGame);
+                        console.log('🔍 [DEBUG] createBlockchainTransaction returned:', txResult);
+                        
+                        if (!txResult.success) {
+                            console.error('❌ [DEBUG] Transaction failed:', txResult.error);
+                            throw new Error('Blockchain transaction failed: ' + txResult.error);
+                        }
+                        
+                        showMessage('Blockchain transaction signed! Game created successfully!', 'success');
+                    } catch (error) {
+                        console.error('❌ [DEBUG] Error in blockchain transaction:', error);
+                        throw new Error('Blockchain transaction error: ' + error.message);
                     }
-                    
-                    showMessage('Blockchain transaction signed! Game created successfully!', 'success');
                 } else {
                     console.log('ℹ️ No signature required for this game');
                 }
