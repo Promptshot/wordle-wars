@@ -4,6 +4,28 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const RealSolanaGameClient = require('./real-solana-client');
 
+// House wallet for fees and both-lose scenarios
+const HOUSE_WALLET = 'FRG1E6NiJ9UVN4T4v2r9hN1JzqB9r1uPuetCLXuqiRjT';
+
+// Helper function to settle game on blockchain
+async function settleGameOnBlockchain(game, winner, isForfeit, bothLost) {
+    try {
+        console.log(`💰 Settling game ${game.id} on blockchain:`, {
+            winner: winner || 'none',
+            isForfeit,
+            bothLost
+        });
+        
+        // TODO: Call smart contract settle_game instruction
+        // For now, just log - we'll implement this when frontend calls work
+        
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Blockchain settlement failed:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 const app = express();
 const server = http.createServer(app);
 
@@ -513,47 +535,50 @@ app.post('/api/games/:gameId/forfeit', (req, res) => {
         return res.status(400).json({ error: 'Player not in this game' });
     }
     
-    // Game before forfeit
+    const isGamePlaying = game.status === 'playing';
     
-    // Calculate forfeit penalty based on game state
-    const isGameStarted = game.status === 'playing';
-    const hasOtherPlayers = game.players.length > 1;
-    const forfeitFee = isGameStarted || hasOtherPlayers ? 1.0 : 0.05; // 100% loss if game started, 5% fee if waiting
-    
-    // Forfeit calculation
-    
-    // Remove player from game
-    game.players = game.players.filter(p => p !== playerAddress);
-    
-    // If no players left, remove the game
-    if (game.players.length === 0) {
-        // No players left, removing game completely
-        games = games.filter(g => g.id !== gameId);
-        // Games after removal
-        
-        // Broadcast that the game was removed
-        io.emit('gameRemoved', { gameId });
+    if (isGamePlaying) {
+        // Game is active - determine opponent as winner with 5% forfeit fee
+        const opponent = game.players.find(p => p !== playerAddress);
+        if (opponent) {
+            game.winner = opponent;
+            game.status = 'completed';
+            game.completedAt = Date.now();
+            
+            // Settle on blockchain with 5% forfeit fee
+            await settleGameOnBlockchain(game, opponent, true, false);
+            
+            try {
+                completedGames.push({ id: game.id, wager: game.wager, winner: game.winner, status: 'completed', completedAt: game.completedAt });
+                if (completedGames.length > 20) completedGames.shift();
+            } catch(e){}
+            
+            io.emit('gameCompleted', game);
+            
+            res.json({
+                success: true,
+                message: 'Game forfeited - opponent wins with 5% house fee'
+            });
+        } else {
+            return res.status(400).json({ error: 'No opponent found' });
+        }
     } else {
-        // One player left, setting status to waiting
-        // If only one player left, set status back to waiting
-        game.status = 'waiting';
+        // Game is waiting - just remove player and refund (no fee)
+        game.players = game.players.filter(p => p !== playerAddress);
         
-        // Broadcast game update
-        io.emit('gameUpdated', game);
+        if (game.players.length === 0) {
+            games = games.filter(g => g.id !== gameId);
+            io.emit('gameRemoved', { gameId });
+        } else {
+            game.status = 'waiting';
+            io.emit('gameUpdated', game);
+        }
+        
+        res.json({
+            success: true,
+            message: 'Left waiting game - no penalty'
+        });
     }
-    
-    // Return forfeit result with penalty information
-    res.json({
-        success: true,
-        forfeitFee: forfeitFee,
-        refundAmount: game.wager * (1 - forfeitFee),
-        penaltyAmount: game.wager * forfeitFee,
-        message: forfeitFee === 1.0 ? 
-            'Game forfeited - full wager lost (game was active)' : 
-            'Game forfeited - 5% fee applied (95% refund)'
-    });
-    
-    // Forfeit completed successfully
 });
 
 app.post('/api/games/:gameId/guess', (req, res) => {
@@ -611,6 +636,10 @@ app.post('/api/games/:gameId/guess', (req, res) => {
         game.status = 'completed';
         game.winner = playerAddress;
         game.completedAt = Date.now();
+        
+        // Settle on blockchain with 2% fee
+        await settleGameOnBlockchain(game, playerAddress, false, false);
+        
         try { 
             completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); 
             // Keep only last 20 games to prevent memory leak
@@ -631,11 +660,19 @@ app.post('/api/games/:gameId/guess', (req, res) => {
         if (allPlayersDone) {
             game.status = 'completed';
             game.completedAt = Date.now();
+            
             // If exactly one win exists, set winner, else no winner -> both lost
             const winnerEntry = Object.entries(game.playerResults).find(([, r]) => r === 'win');
             if (winnerEntry) {
                 game.winner = winnerEntry[0];
+                // Normal win - 2% fee
+                await settleGameOnBlockchain(game, game.winner, false, false);
+            } else {
+                // Both lost - entire pot to house
+                game.winner = null;
+                await settleGameOnBlockchain(game, null, false, true);
             }
+            
             try { 
             completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); 
             // Keep only last 20 games to prevent memory leak
@@ -714,6 +751,19 @@ app.post('/api/games/:gameId/timeout', (req, res) => {
     if (allPlayersDone) {
         game.status = 'completed';
         game.completedAt = Date.now();
+        
+        // Determine winner from timeout scenario
+        const winnerEntry = Object.entries(game.playerResults).find(([, r]) => r === 'win');
+        if (winnerEntry) {
+            game.winner = winnerEntry[0];
+            // Normal win - 2% fee
+            await settleGameOnBlockchain(game, game.winner, false, false);
+        } else {
+            // Both timed out/lost - entire pot to house
+            game.winner = null;
+            await settleGameOnBlockchain(game, null, false, true);
+        }
+        
         try { 
             completedGames.push({ id: game.id, wager: game.wager, winner: game.winner || null, status: 'completed', completedAt: game.completedAt }); 
             // Keep only last 20 games to prevent memory leak
