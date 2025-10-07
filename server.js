@@ -259,7 +259,9 @@ app.post('/api/games', async (req, res) => {
                 escrowAccount: escrowResult.escrowAccount,
                 escrowType: escrowResult.escrowType,
                 wagerAmount: escrowResult.wagerAmount,
-                transferAmount: escrowResult.transferAmount
+                transferAmount: escrowResult.transferAmount,
+                gameKeypair: escrowResult.gameKeypair,
+                escrowKeypair: escrowResult.escrowKeypair
             }
         };
         
