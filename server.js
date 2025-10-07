@@ -442,7 +442,7 @@ app.post('/api/games/:gameId/join', async (req, res) => {
 });
 
 // Confirm Player 2 joined after blockchain transaction
-app.post('/api/games/:gameId/confirm-join', (req, res) => {
+app.post('/api/games/:gameId/confirm-join', async (req, res) => {
     const { gameId} = req.params;
     const { signature, success, playerAddress } = req.body;
     
@@ -452,14 +452,17 @@ app.post('/api/games/:gameId/confirm-join', (req, res) => {
     }
     
     if (success) {
+        console.log(`✅ Player 2 joined with blockchain confirmation: ${playerAddress}`);
+        console.log(`✅ Join transaction signature: ${signature}`);
+        
+        // Wait a moment for blockchain state to finalize (confirmed commitment)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         // Add player to game
         game.players.push(playerAddress);
         game.status = 'playing';
         game.startedAt = Date.now();
         game.joinSignature = signature;
-        
-        console.log(`✅ Player 2 joined with blockchain confirmation: ${playerAddress}`);
-        console.log(`✅ Join transaction signature: ${signature}`);
         
         // Broadcast to all clients that game is starting
         io.emit('gameStarted', game);
