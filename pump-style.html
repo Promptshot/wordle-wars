@@ -1426,7 +1426,8 @@
         }
 
         async function createBlockchainTransaction(fromAddress, amount, type, gameData = null) {
-            console.log('🚀 [REAL] createBlockchainTransaction called');
+            console.log('🚀 [ANCHOR PROGRAM] createBlockchainTransaction called');
+            console.log('🔍 Type:', type);
             
             try {
                 const provider = getProvider();
@@ -1440,7 +1441,7 @@
                     throw new Error('No escrow details provided by server');
                 }
                 
-                console.log('🔍 Escrow account:', escrowDetails.escrowAccount);
+                console.log('🔍 Escrow details:', escrowDetails);
                 
                 // Calculate lamports
                 const wagerLamports = Math.floor(amount * 1000000000);
@@ -1448,31 +1449,93 @@
                 // Create connection
                 const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
                 
-                // Create public keys
-                const fromPubkey = new solanaWeb3.PublicKey(fromAddress);
-                const toPubkey = new solanaWeb3.PublicKey(escrowDetails.escrowAccount);
+                // Program ID
+                const programId = new solanaWeb3.PublicKey(escrowDetails.programId);
                 
-                // Create transaction
-                const transaction = new solanaWeb3.Transaction().add(
-                    solanaWeb3.SystemProgram.transfer({
-                        fromPubkey: fromPubkey,
-                        toPubkey: toPubkey,
-                        lamports: wagerLamports,
-                    })
+                // User wallet
+                const userPubkey = new solanaWeb3.PublicKey(fromAddress);
+                
+                // Game and Escrow accounts (from server keypairs)
+                const gameAccountPubkey = new solanaWeb3.PublicKey(escrowDetails.gameAccount);
+                const escrowAccountPubkey = new solanaWeb3.PublicKey(escrowDetails.escrowAccount);
+                
+                // Get game and escrow keypairs from server
+                const gameKeypair = solanaWeb3.Keypair.fromSecretKey(
+                    new Uint8Array(escrowDetails.gameKeypair.secretKey)
                 );
+                const escrowKeypair = solanaWeb3.Keypair.fromSecretKey(
+                    new Uint8Array(escrowDetails.escrowKeypair.secretKey)
+                );
+                
+                console.log('🔍 Program ID:', programId.toString());
+                console.log('🔍 Game Account:', gameAccountPubkey.toString());
+                console.log('🔍 Escrow Account:', escrowAccountPubkey.toString());
+                
+                let transaction;
+                
+                if (type === 'create_game') {
+                    // Build create_game instruction
+                    console.log('📝 Building create_game instruction...');
+                    
+                    // Instruction data: discriminator (8 bytes) + wager_amount (8 bytes as u64 little-endian)
+                    const discriminator = Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]); // create_game
+                    const wagerBuffer = Buffer.alloc(8);
+                    wagerBuffer.writeBigUInt64LE(BigInt(wagerLamports));
+                    const data = Buffer.concat([discriminator, wagerBuffer]);
+                    
+                    // Create instruction
+                    const instruction = new solanaWeb3.TransactionInstruction({
+                        keys: [
+                            { pubkey: userPubkey, isSigner: true, isWritable: true }, // creator
+                            { pubkey: gameAccountPubkey, isSigner: true, isWritable: true }, // game_account
+                            { pubkey: escrowAccountPubkey, isSigner: true, isWritable: true }, // escrow_account
+                            { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
+                        ],
+                        programId: programId,
+                        data: data
+                    });
+                    
+                    transaction = new solanaWeb3.Transaction().add(instruction);
+                    
+                } else if (type === 'join_game') {
+                    // Build join_game instruction
+                    console.log('📝 Building join_game instruction...');
+                    
+                    // Instruction data: just discriminator (no additional data)
+                    const discriminator = Buffer.from([176, 43, 213, 31, 11, 56, 227, 15]); // join_game
+                    
+                    // Create instruction
+                    const instruction = new solanaWeb3.TransactionInstruction({
+                        keys: [
+                            { pubkey: userPubkey, isSigner: true, isWritable: true }, // opponent
+                            { pubkey: gameAccountPubkey, isSigner: false, isWritable: true }, // game_account
+                            { pubkey: escrowAccountPubkey, isSigner: false, isWritable: true }, // escrow_account
+                            { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
+                        ],
+                        programId: programId,
+                        data: discriminator
+                    });
+                    
+                    transaction = new solanaWeb3.Transaction().add(instruction);
+                }
                 
                 // Get recent blockhash
                 const { blockhash } = await connection.getLatestBlockhash();
                 transaction.recentBlockhash = blockhash;
-                transaction.feePayer = fromPubkey;
+                transaction.feePayer = userPubkey;
                 
                 console.log('🔍 Requesting signature from Phantom...');
                 
-                // Sign transaction
-                const signedTransaction = await provider.signTransaction(transaction);
+                // Sign transaction with user wallet
+                const signedByUser = await provider.signTransaction(transaction);
+                
+                // Also sign with game and escrow keypairs (for create_game)
+                if (type === 'create_game') {
+                    signedByUser.partialSign(gameKeypair, escrowKeypair);
+                }
                 
                 // Send transaction
-                const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+                const signature = await connection.sendRawTransaction(signedByUser.serialize());
                 console.log('✅ Transaction sent:', signature);
                 
                 // Wait for confirmation
@@ -1482,7 +1545,7 @@
                 return { 
                     success: true, 
                     signature: signature,
-                    message: 'Blockchain transaction completed!'
+                    message: 'Anchor program call completed!'
                 };
                 
             } catch (error) {
