@@ -1284,14 +1284,10 @@
                     getDevnetSolBtn.style.display = 'inline-block';
                 }
                 
-                // Show clear stuck game button if there's an active game
+                // Always show clear stuck game button when wallet is connected
                 const clearStuckGameBtn = document.getElementById('clearStuckGame');
                 if (clearStuckGameBtn) {
-                    if (gameState.currentGame && !gameState.gameOver) {
-                        clearStuckGameBtn.style.display = 'inline-block';
-                    } else {
-                        clearStuckGameBtn.style.display = 'none';
-                    }
+                    clearStuckGameBtn.style.display = 'inline-block';
                 }
                 
                 // Connect to server
@@ -1889,7 +1885,7 @@
             
             try {
                 // Call server cleanup endpoint
-                const response = await fetch('/api/cleanup-stuck-games', {
+                const response = await fetch(`${SERVER_URL}/api/cleanup-stuck-games`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
