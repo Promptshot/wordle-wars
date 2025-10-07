@@ -527,33 +527,42 @@ app.post('/api/games/:gameId/forfeit', async (req, res) => {
     const { gameId } = req.params;
     const { playerAddress } = req.body;
     
+    console.log(`🏳️ FORFEIT REQUEST received for game ${gameId} by player ${playerAddress}`);
+    
     // Forfeit request
     
     // Input validation
     if (!validateGameId(gameId)) {
         // Invalid game ID format
+        console.log(`❌ Invalid game ID format: ${gameId}`);
         return res.status(400).json({ error: 'Invalid game ID' });
     }
     
     if (!validateWalletAddress(playerAddress)) {
         // Invalid wallet address
+        console.log(`❌ Invalid wallet address: ${playerAddress}`);
         return res.status(400).json({ error: 'Invalid wallet address' });
     }
     
     const game = games.find(g => g.id === gameId);
     if (!game) {
         // Game not found
+        console.log(`❌ Game not found: ${gameId}`);
         return res.status(404).json({ error: 'Game not found' });
     }
     
+    console.log(`🎮 Game found: ${game.id}, status: ${game.status}, players: ${game.players.join(', ')}`);
+    
     if (!game.players.includes(playerAddress)) {
         // Player not in this game
+        console.log(`❌ Player ${playerAddress} not in game ${gameId}`);
         return res.status(400).json({ error: 'Player not in this game' });
     }
     
     const isGamePlaying = game.status === 'playing';
     
     if (isGamePlaying) {
+        console.log(`🏳️ Active game forfeit - settling on blockchain with 5% fee`);
         // Game is active - determine opponent as winner with 5% forfeit fee
         const opponent = game.players.find(p => p !== playerAddress);
         if (opponent) {
