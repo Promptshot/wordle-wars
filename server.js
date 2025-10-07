@@ -244,7 +244,9 @@ app.post('/api/games', async (req, res) => {
     
     // Create blockchain escrow
     try {
+        console.log('🎮 Creating blockchain escrow for:', playerAddress, 'wager:', wager);
         const escrowResult = await solanaClient.createGameEscrow(playerAddress, parseFloat(wager));
+        console.log('🔍 Escrow result:', escrowResult);
         
         if (!escrowResult.success) {
             return res.status(400).json({ error: 'Blockchain error: ' + escrowResult.error });
@@ -252,10 +254,12 @@ app.post('/api/games', async (req, res) => {
         
         newGame.escrowId = escrowResult.escrowId;
         newGame.blockchainStatus = 'escrow_created';
+        newGame.requiresSignature = escrowResult.requiresSignature || false;
+        newGame.escrowAddress = escrowResult.escrowAddress;
         
         games.push(newGame);
         
-        console.log(`🎮 Game created with blockchain escrow: ${gameId}`);
+        console.log(`🎮 Game created with blockchain escrow: ${gameId}, requiresSignature: ${newGame.requiresSignature}`);
         
         // Broadcast to all connected clients
         io.emit('gameCreated', newGame);

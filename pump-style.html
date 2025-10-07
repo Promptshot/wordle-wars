@@ -1866,8 +1866,12 @@
                 
                 const newGame = await response.json();
                 
+                console.log('🎮 Game created response:', newGame);
+                console.log('🔍 requiresSignature:', newGame.requiresSignature);
+                
                 // If the game requires a blockchain signature, handle it
                 if (newGame.requiresSignature) {
+                    console.log('🔐 Game requires signature, requesting wallet signature...');
                     showMessage('Please sign the transaction to create your game escrow...', 'success');
                     
                     // Create and sign the blockchain transaction
@@ -1878,6 +1882,8 @@
                     }
                     
                     showMessage('Blockchain transaction signed! Game created successfully!', 'success');
+                } else {
+                    console.log('ℹ️ No signature required for this game');
                 }
                 
                 // Clear previous game state
