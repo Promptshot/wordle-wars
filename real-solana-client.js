@@ -213,25 +213,49 @@ class RealSolanaGameClient {
             const escrowAccount = new PublicKey(escrowDetails.escrowAccount);
             const creatorPubkey = new PublicKey(players[0]);
             const opponentPubkey = new PublicKey(players[1]);
-            const houseWallet = new PublicKey('FRG1E6NiJ9UVN4T4v2r9hN1JzqB9r1uPuetCLXuqiRjT');
-            const winnerPubkey = winner ? new PublicKey(winner) : houseWallet;
+            const houseWalletPubkey = new PublicKey('FRG1E6NiJ9UVN4T4v2r9hN1JzqB9r1uPuetCLXuqiRjT');
+            const winnerPubkey = winner ? new PublicKey(winner) : houseWalletPubkey;
             
             console.log('📝 Calling settle_game on smart contract...');
+            console.log('   Game Account:', gameAccount.toString());
+            console.log('   Escrow Account:', escrowAccount.toString());
             console.log('   Winner:', winnerPubkey.toString());
+            console.log('   Creator:', creatorPubkey.toString());
+            console.log('   Opponent:', opponentPubkey.toString());
+            console.log('   House:', houseWalletPubkey.toString());
             console.log('   Is Forfeit:', isForfeit);
             console.log('   Both Lost:', bothLost);
             
-            // Call settle_game instruction
-            const signature = await program.methods
+            // Build transaction
+            const tx = await program.methods
                 .settleGame(winnerPubkey, isForfeit, bothLost)
                 .accounts({
                     gameAccount: gameAccount,
                     escrowAccount: escrowAccount,
                     creator: creatorPubkey,
                     opponent: opponentPubkey,
-                    houseWallet: houseWallet,
+                    houseWallet: houseWalletPubkey,
                 })
-                .rpc();
+                .transaction();
+            
+            // Get fresh blockhash
+            const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash();
+            tx.recentBlockhash = blockhash;
+            tx.feePayer = this.authorityKeypair.publicKey;
+            
+            // Sign with backend authority
+            tx.sign(this.authorityKeypair);
+            
+            // Send transaction
+            const signature = await this.connection.sendRawTransaction(tx.serialize());
+            console.log('📤 Settlement transaction sent:', signature);
+            
+            // Confirm
+            await this.connection.confirmTransaction({
+                signature,
+                blockhash,
+                lastValidBlockHeight
+            });
             
             console.log('✅ Game settled on blockchain:', signature);
             
@@ -242,6 +266,7 @@ class RealSolanaGameClient {
             };
         } catch (error) {
             console.error('❌ Game settlement failed:', error);
+            console.error('❌ Error details:', error);
             return { success: false, error: error.message };
         }
     }
