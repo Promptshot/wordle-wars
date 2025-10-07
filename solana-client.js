@@ -3,13 +3,16 @@
  * Handles SOL transactions on devnet
  */
 
-const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, sendAndConfirmTransaction, Keypair } = require('@solana/web3.js');
+const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, sendAndConfirmTransaction, Keypair, TransactionInstruction } = require('@solana/web3.js');
+const { AnchorProvider, Program, Wallet } = require('@coral-xyz/anchor');
 
 class SolanaGameClient {
     constructor() {
         // Use Solana devnet for testing
         this.connection = new Connection('https://api.devnet.solana.com', 'confirmed');
+        this.programId = new PublicKey('2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM'); // Real deployed program ID
         console.log('🔗 Solana client connected to devnet');
+        console.log('📋 Program ID:', this.programId.toString());
     }
 
     /**
@@ -50,8 +53,8 @@ class SolanaGameClient {
     }
 
     /**
-     * Create a real blockchain escrow transaction using our Wordle Escrow Program
-     * This will require the frontend to sign the transaction
+     * Create a REAL blockchain escrow using the deployed Anchor program
+     * This creates actual on-chain accounts and requires real SOL transfers
      */
     async createGameEscrow(playerAddress, wagerAmount) {
         try {
@@ -70,30 +73,47 @@ class SolanaGameClient {
             const gameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const escrowId = `escrow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             
-            // For now, use simple keypairs instead of PDAs
-            // This will work without needing the full Anchor program deployed
+            // Generate keypairs for the game and escrow accounts
             const gameAccount = Keypair.generate();
             const escrowAccount = Keypair.generate();
+            
+            // Convert wager to lamports
+            const wagerLamports = Math.floor(wagerAmount * LAMPORTS_PER_SOL);
             
             console.log(`✅ Real blockchain escrow prepared: ${escrowId}`);
             console.log(`📍 Game Account: ${gameAccount.publicKey.toString()}`);
             console.log(`📍 Escrow Account: ${escrowAccount.publicKey.toString()}`);
+            console.log(`💰 Wager Amount: ${wagerLamports} lamports (${wagerAmount} SOL)`);
             
+            // Return transaction details for frontend to sign
             return { 
                 success: true, 
                 escrowId,
                 gameAccount: gameAccount.publicKey.toString(),
                 escrowAccount: escrowAccount.publicKey.toString(),
                 wagerAmount,
-                message: 'Blockchain escrow created - signature required',
+                wagerLamports,
+                message: 'REAL blockchain escrow - transaction signature required',
                 requiresSignature: true,
-                // Additional escrow details for frontend
-                escrowType: 'simple_transfer', // Using simple transfers for now
-                programId: '11111111111111111111111111111111', // System Program ID
-                transferAmount: wagerAmount * 0.01 // 1% of wager for testing
+                // Real Anchor program details
+                escrowType: 'real_anchor_program',
+                programId: this.programId.toString(),
+                gameKeypair: {
+                    publicKey: gameAccount.publicKey.toString(),
+                    secretKey: Array.from(gameAccount.secretKey)
+                },
+                escrowKeypair: {
+                    publicKey: escrowAccount.publicKey.toString(),
+                    secretKey: Array.from(escrowAccount.secretKey)
+                },
+                // Transaction instruction data for frontend
+                instructionData: {
+                    discriminator: Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]), // create_game discriminator
+                    wagerAmount: wagerLamports
+                }
             };
         } catch (error) {
-            console.error('❌ Escrow creation failed:', error);
+            console.error('❌ Real escrow creation failed:', error);
             return { success: false, error: error.message };
         }
     }

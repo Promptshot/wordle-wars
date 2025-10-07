@@ -1,0 +1,41 @@
+name: Deploy Smart Contract
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        
+    - name: Install Solana CLI
+      run: |
+        sh -c "$(curl -sSfL https://release.solana.com/v1.17.0/install)"
+        echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+        
+    - name: Install Anchor CLI
+      run: cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+      
+    - name: Configure Solana
+      run: |
+        solana config set --url devnet
+        echo "${{ secrets.SOLANA_PRIVATE_KEY }}" > ~/.config/solana/id.json
+        
+    - name: Build and Deploy
+      run: |
+        anchor build
+        anchor deploy
+        
+    - name: Update Program ID
+      run: |
+        # Update program ID in your code
+        echo "Program deployed successfully!"

@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-const SolanaGameClient = require('./solana-client');
+const RealSolanaGameClient = require('./real-solana-client');
 
 const app = express();
 const server = http.createServer(app);
@@ -11,8 +11,8 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Initialize Solana client
-const solanaClient = new SolanaGameClient();
+// Initialize REAL Solana client
+const solanaClient = new RealSolanaGameClient();
 
 // CORS configuration for production
 const allowedOrigins = NODE_ENV === 'production' 
@@ -229,20 +229,7 @@ app.post('/api/games', async (req, res) => {
     const gameId = 'game_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     const word = words[Math.floor(Math.random() * words.length)];
     
-    const newGame = {
-        id: gameId,
-        wager: parseFloat(wager),
-        players: [playerAddress],
-        status: 'waiting',
-        word: word,
-        createdAt: Date.now(),
-        guesses: [],
-        playerResults: {},
-        escrowId: null,
-        blockchainStatus: 'pending'
-    };
-    
-    // Create blockchain escrow
+    // Create blockchain escrow FIRST - don't create game until blockchain is ready
     try {
         console.log('🎮 Creating blockchain escrow for:', playerAddress, 'wager:', wager);
         const escrowResult = await solanaClient.createGameEscrow(playerAddress, parseFloat(wager));
@@ -252,21 +239,32 @@ app.post('/api/games', async (req, res) => {
             return res.status(400).json({ error: 'Blockchain error: ' + escrowResult.error });
         }
         
-                newGame.escrowId = escrowResult.escrowId;
-                newGame.blockchainStatus = 'escrow_created';
-                newGame.requiresSignature = escrowResult.requiresSignature || false;
-                newGame.escrowAddress = escrowResult.escrowAddress;
-                
-                // Pass escrow details to frontend for transaction creation
-                newGame.escrowDetails = {
-                    programId: escrowResult.programId,
-                    gameAccount: escrowResult.gameAccount,
-                    escrowAccount: escrowResult.escrowAccount,
-                    escrowType: escrowResult.escrowType,
-                    wagerAmount: escrowResult.wagerAmount,
-                    transferAmount: escrowResult.transferAmount
-                };
+        // Only create the game object AFTER blockchain escrow is prepared
+        const newGame = {
+            id: gameId,
+            wager: parseFloat(wager),
+            players: [playerAddress],
+            status: 'waiting',
+            word: word,
+            createdAt: Date.now(),
+            guesses: [],
+            playerResults: {},
+            escrowId: escrowResult.escrowId,
+            blockchainStatus: 'escrow_created',
+            requiresSignature: escrowResult.requiresSignature || false,
+            escrowAddress: escrowResult.escrowAddress,
+            // Pass escrow details to frontend for transaction creation
+            escrowDetails: {
+                programId: escrowResult.programId,
+                gameAccount: escrowResult.gameAccount,
+                escrowAccount: escrowResult.escrowAccount,
+                escrowType: escrowResult.escrowType,
+                wagerAmount: escrowResult.wagerAmount,
+                transferAmount: escrowResult.transferAmount
+            }
+        };
         
+        // Add to games array ONLY after blockchain is prepared
         games.push(newGame);
         
         console.log(`🎮 Game created with blockchain escrow: ${gameId}, requiresSignature: ${newGame.requiresSignature}`);
@@ -285,6 +283,66 @@ app.post('/api/games', async (req, res) => {
         if (playerAddress) connectedWallets.add(playerAddress);
         io.emit('connectedWallets', Array.from(connectedWallets));
     } catch (e) {}
+});
+
+// New endpoint to confirm blockchain transaction was successful
+app.post('/api/games/:gameId/confirm-blockchain', (req, res) => {
+    const { gameId } = req.params;
+    const { signature, success } = req.body;
+    
+    const game = games.find(g => g.id === gameId);
+    if (!game) {
+        return res.status(404).json({ error: 'Game not found' });
+    }
+    
+    if (success) {
+        // Update game status to indicate blockchain transaction was successful
+        game.blockchainStatus = 'transaction_confirmed';
+        game.blockchainSignature = signature;
+        console.log(`✅ Blockchain transaction confirmed for game ${gameId}: ${signature}`);
+        
+        // Broadcast update to all clients
+        io.emit('gameUpdated', game);
+        
+        res.json({ success: true, message: 'Blockchain transaction confirmed' });
+    } else {
+        // Remove the game if blockchain transaction failed
+        games = games.filter(g => g.id !== gameId);
+        console.log(`❌ Blockchain transaction failed for game ${gameId}, game removed`);
+        
+        // Broadcast that the game was removed
+        io.emit('gameRemoved', { gameId });
+        
+        res.json({ success: false, message: 'Game removed due to failed blockchain transaction' });
+    }
+});
+
+// Manual cleanup endpoint for stuck games
+app.post('/api/cleanup-stuck-games', (req, res) => {
+    const initialCount = games.length;
+    
+    // Remove games that haven't confirmed blockchain transactions
+    games = games.filter(game => {
+        if (game.blockchainStatus === 'escrow_created') {
+            console.log(`🧹 Manually removing stuck game ${game.id} - no blockchain confirmation`);
+            return false;
+        }
+        return true;
+    });
+    
+    const removedCount = initialCount - games.length;
+    console.log(`🧹 Manual cleanup removed ${removedCount} stuck games`);
+    
+    // Broadcast removal of all stuck games
+    if (removedCount > 0) {
+        io.emit('gamesCleanedUp', { removedCount });
+    }
+    
+    res.json({ 
+        success: true, 
+        removedCount: removedCount,
+        message: `Removed ${removedCount} stuck games` 
+    });
 });
 
 app.post('/api/games/:gameId/join', async (req, res) => {
@@ -697,16 +755,29 @@ io.on('connection', (socket) => {
 function cleanupStaleGames() {
     const now = Date.now();
     const staleThreshold = 30 * 60 * 1000; // 30 minutes
+    const blockchainTimeout = 5 * 60 * 1000; // 5 minutes for blockchain confirmation
     
     const initialCount = games.length;
     games = games.filter(game => {
         const gameAge = now - game.createdAt;
-        return gameAge < staleThreshold;
+        
+        // Remove games that are too old
+        if (gameAge > staleThreshold) {
+            return false;
+        }
+        
+        // Remove games that haven't confirmed blockchain transaction within 5 minutes
+        if (game.blockchainStatus === 'escrow_created' && gameAge > blockchainTimeout) {
+            console.log(`🧹 Removing game ${game.id} - blockchain transaction not confirmed within timeout`);
+            return false;
+        }
+        
+        return true;
     });
     
     const removedCount = initialCount - games.length;
     if (removedCount > 0) {
-        // Cleaned up stale games
+        console.log(`🧹 Cleaned up ${removedCount} stale games`);
     }
 }
 

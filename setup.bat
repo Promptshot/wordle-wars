@@ -35,3 +35,4 @@ echo    3. Connect your Phantom wallet
 echo    4. Get devnet SOL and start playing!
 echo.
 pause
+

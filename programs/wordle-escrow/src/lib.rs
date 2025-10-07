@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
+use anchor_lang::system_program;
 
-declare_id!("WordleEscrow111111111111111111111111111111");
+declare_id!("2E9mCNwZ2LLHjFpFQUC8K23ARHwhUEoMGq9yZpKWu7VM");
 
 #[program]
 pub mod wordle_escrow {
@@ -11,18 +12,37 @@ pub mod wordle_escrow {
         let game_account = &mut ctx.accounts.game_account;
         let escrow_account = &mut ctx.accounts.escrow_account;
         
+        // Validate wager amount
+        require!(wager_amount > 0, ErrorCode::InvalidWager);
+        require!(wager_amount >= 22_000_000, ErrorCode::WagerTooLow); // 0.022 SOL minimum
+        
         // Initialize game state
         game_account.creator = ctx.accounts.creator.key();
         game_account.wager_amount = wager_amount;
         game_account.status = GameStatus::Waiting;
         game_account.players = [ctx.accounts.creator.key(), Pubkey::default()];
         game_account.winner = Pubkey::default();
+        game_account.created_at = Clock::get()?.unix_timestamp;
         
         // Initialize escrow account
         escrow_account.game = ctx.accounts.game_account.key();
         escrow_account.total_amount = wager_amount;
         escrow_account.creator_deposited = wager_amount;
         escrow_account.opponent_deposited = 0;
+        escrow_account.created_at = Clock::get()?.unix_timestamp;
+        
+        // Transfer SOL from creator to escrow
+        let transfer_instruction = system_program::Transfer {
+            from: ctx.accounts.creator.to_account_info(),
+            to: ctx.accounts.escrow_account.to_account_info(),
+        };
+        
+        let cpi_context = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            transfer_instruction,
+        );
+        
+        system_program::transfer(cpi_context, wager_amount)?;
         
         msg!("Game created with wager: {} lamports", wager_amount);
         Ok(())
@@ -35,14 +55,29 @@ pub mod wordle_escrow {
         
         require!(game_account.status == GameStatus::Waiting, ErrorCode::GameNotWaiting);
         require!(game_account.players[1] == Pubkey::default(), ErrorCode::GameFull);
+        require!(ctx.accounts.opponent.key() != game_account.creator, ErrorCode::CannotJoinOwnGame);
         
         // Add player to game
         game_account.players[1] = ctx.accounts.opponent.key();
         game_account.status = GameStatus::Playing;
+        game_account.started_at = Clock::get()?.unix_timestamp;
         
         // Update escrow
         escrow_account.opponent_deposited = game_account.wager_amount;
         escrow_account.total_amount = game_account.wager_amount * 2;
+        
+        // Transfer SOL from opponent to escrow
+        let transfer_instruction = system_program::Transfer {
+            from: ctx.accounts.opponent.to_account_info(),
+            to: ctx.accounts.escrow_account.to_account_info(),
+        };
+        
+        let cpi_context = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            transfer_instruction,
+        );
+        
+        system_program::transfer(cpi_context, game_account.wager_amount)?;
         
         msg!("Player joined game: {}", ctx.accounts.opponent.key());
         Ok(())
@@ -59,18 +94,26 @@ pub mod wordle_escrow {
         // Update game state
         game_account.winner = winner;
         game_account.status = GameStatus::Completed;
+        game_account.completed_at = Clock::get()?.unix_timestamp;
         
-        // Transfer winnings to winner
+        // Get total amount before borrowing
+        let total_amount = escrow_account.total_amount;
+        
+        // Transfer all winnings to winner
         let winner_account = if winner == game_account.players[0] {
             &ctx.accounts.creator
         } else {
             &ctx.accounts.opponent
         };
         
-        **ctx.accounts.escrow_account.to_account_info().try_borrow_mut_lamports()? -= escrow_account.total_amount;
-        **winner_account.to_account_info().try_borrow_mut_lamports()? += escrow_account.total_amount;
+        let escrow_info = ctx.accounts.escrow_account.to_account_info();
+        let winner_info = winner_account.to_account_info();
         
-        msg!("Game settled! Winner: {}", winner);
+        // Transfer all SOL from escrow to winner
+        **escrow_info.try_borrow_mut_lamports()? -= total_amount;
+        **winner_info.try_borrow_mut_lamports()? += total_amount;
+        
+        msg!("Game settled! Winner: {} gets {} lamports", winner, total_amount);
         Ok(())
     }
 
@@ -80,14 +123,22 @@ pub mod wordle_escrow {
         let escrow_account = &mut ctx.accounts.escrow_account;
         
         require!(game_account.status == GameStatus::Waiting, ErrorCode::GameNotWaiting);
+        require!(ctx.accounts.creator.key() == game_account.creator, ErrorCode::Unauthorized);
+        
+        // Get refund amount before borrowing
+        let refund_amount = escrow_account.creator_deposited;
         
         // Refund creator
-        **ctx.accounts.escrow_account.to_account_info().try_borrow_mut_lamports()? -= escrow_account.creator_deposited;
-        **ctx.accounts.creator.to_account_info().try_borrow_mut_lamports()? += escrow_account.creator_deposited;
+        let escrow_info = ctx.accounts.escrow_account.to_account_info();
+        let creator_info = ctx.accounts.creator.to_account_info();
+        
+        **escrow_info.try_borrow_mut_lamports()? -= refund_amount;
+        **creator_info.try_borrow_mut_lamports()? += refund_amount;
         
         game_account.status = GameStatus::Cancelled;
+        game_account.completed_at = Clock::get()?.unix_timestamp;
         
-        msg!("Game cancelled, refunded: {} lamports", escrow_account.creator_deposited);
+        msg!("Game cancelled, refunded: {} lamports", refund_amount);
         Ok(())
     }
 }
@@ -163,6 +214,9 @@ pub struct GameAccount {
     pub status: GameStatus,
     pub players: [Pubkey; 2],
     pub winner: Pubkey,
+    pub created_at: i64,
+    pub started_at: i64,
+    pub completed_at: i64,
 }
 
 #[account]
@@ -172,9 +226,10 @@ pub struct EscrowAccount {
     pub total_amount: u64,
     pub creator_deposited: u64,
     pub opponent_deposited: u64,
+    pub created_at: i64,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum GameStatus {
     Waiting,
     Playing,
@@ -192,4 +247,12 @@ pub enum ErrorCode {
     GameFull,
     #[msg("Invalid winner")]
     InvalidWinner,
+    #[msg("Invalid wager amount")]
+    InvalidWager,
+    #[msg("Wager amount too low")]
+    WagerTooLow,
+    #[msg("Cannot join your own game")]
+    CannotJoinOwnGame,
+    #[msg("Unauthorized action")]
+    Unauthorized,
 }
