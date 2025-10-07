@@ -1963,36 +1963,18 @@
                     } catch (cancelError) {
                         console.error('❌ Cancel transaction failed:', cancelError);
                         
-                        // Check if it's a "GameNotWaiting" error (game already cancelled)
+                        // Check if it's a "GameNotWaiting" error (game already cancelled/joined)
                         if (cancelError.message.includes('GameNotWaiting') || cancelError.message.includes('Game is not in waiting status')) {
                             console.log('ℹ️ Game already cancelled or not in waiting state');
-                            showSuccessMessage('Game was already cancelled. Your SOL should be refunded. Returning to lobby...', 'gameRoom');
-                            
-                            // Clear game state and return to lobby
-                            setTimeout(() => {
-                                gameState.currentGame = null;
-                                gameState.gameOver = false;
-                                gameState.guesses = [];
-                                gameState.playerResult = null;
-                                gameState.opponentResult = null;
-                                gameState.word = '';
-                                
-                                if (gameState.timer) {
-                                    clearInterval(gameState.timer);
-                                    gameState.timer = null;
-                                }
-                                
-                                saveGameState();
-                                showScreen('lobby');
-                                updateAvailableGames();
-                                updateWalletBalance();
-                            }, 2000);
-                            
-                            return;
+                            console.log('⚠️ Will still notify backend to clean up game state');
+                            showSuccessMessage('Game was already cancelled. Cleaning up and returning to lobby...', 'gameRoom');
+                            // DON'T return here - continue to backend cleanup below!
                         } else {
+                            // Other blockchain errors - show error but still try backend cleanup
+                            console.error('⚠️ Blockchain cancel failed with error:', cancelError.message);
                             showError('Failed to cancel game on blockchain: ' + cancelError.message, 'gameRoom');
+                            // DON'T return - still try backend cleanup
                         }
-                        return;
                     }
                 }
             
