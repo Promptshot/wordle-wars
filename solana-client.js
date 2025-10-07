@@ -70,8 +70,8 @@ class SolanaGameClient {
             const gameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const escrowId = `escrow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             
-            // Generate keypairs for the game and escrow accounts
-            // In a real implementation, these would be PDAs derived from the program
+            // For now, use simple keypairs instead of PDAs
+            // This will work without needing the full Anchor program deployed
             const gameAccount = Keypair.generate();
             const escrowAccount = Keypair.generate();
             
@@ -88,10 +88,9 @@ class SolanaGameClient {
                 message: 'Blockchain escrow created - signature required',
                 requiresSignature: true,
                 // Additional escrow details for frontend
-                escrowType: 'anchor_program', // Indicates this uses our Anchor program
-                programId: 'WordleEscrow111111111111111111111111111111', // Our program ID
-                gameKeypair: gameAccount, // Will be serialized and sent to frontend
-                escrowKeypair: escrowAccount // Will be serialized and sent to frontend
+                escrowType: 'simple_transfer', // Using simple transfers for now
+                programId: '11111111111111111111111111111111', // System Program ID
+                transferAmount: wagerAmount * 0.01 // 1% of wager for testing
             };
         } catch (error) {
             console.error('❌ Escrow creation failed:', error);
