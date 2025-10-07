@@ -1406,7 +1406,7 @@
             }
         }
 
-        async function createBlockchainTransaction(fromAddress, amount, type) {
+        async function createBlockchainTransaction(fromAddress, amount, type, gameData = null) {
             try {
                 const provider = getProvider();
                 if (!provider) {
@@ -1417,11 +1417,8 @@
                 const connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
                 const fromPubkey = new solanaWeb3.PublicKey(fromAddress);
                 
-                // Create a proper escrow transaction using our Anchor program
-                // This will create a real game escrow account on-chain
-                
-                // Get the escrow details from the server response
-                const escrowDetails = gameState.currentGame.escrowDetails;
+                // Get the escrow details from the game data or current game state
+                const escrowDetails = gameData?.escrowDetails || gameState.currentGame?.escrowDetails;
                 if (!escrowDetails) {
                     throw new Error('No escrow details provided by server');
                 }
@@ -1903,8 +1900,8 @@
                     console.log('🔐 Game requires signature, requesting wallet signature...');
                     showMessage('Please sign the transaction to create your game escrow...', 'success');
                     
-                    // Create and sign the blockchain transaction
-                    const txResult = await createBlockchainTransaction(gameState.walletAddress, wagerAmount, 'create_game');
+                    // Create and sign the blockchain transaction with the newGame data
+                    const txResult = await createBlockchainTransaction(gameState.walletAddress, wagerAmount, 'create_game', newGame);
                     
                     if (!txResult.success) {
                         throw new Error('Blockchain transaction failed: ' + txResult.error);
