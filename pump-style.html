@@ -1907,29 +1907,38 @@
             
             // Check if wallet is connected
             if (!gameState.walletAddress) {
-                showError('Please connect your wallet first to forfeit the game.', 'gameRoom');
+                showError('Please connect your wallet first to cancel the game.', 'gameRoom');
                 return;
             }
             
-            // Determine forfeit penalty based on game state
-            const isGameStarted = gameState.currentGame.status === 'playing';
-            const hasOtherPlayers = gameState.currentGame.players.length > 1;
-            const forfeitFee = isGameStarted || hasOtherPlayers ? 1.0 : 0.05;
-            const refundAmount = gameState.currentGame.wager * (1 - forfeitFee);
-            const penaltyAmount = gameState.currentGame.wager * forfeitFee;
+            const isGameWaiting = gameState.currentGame.status === 'waiting';
+            const isGamePlaying = gameState.currentGame.status === 'playing';
             
-            const confirmMessage = `⚠️ FORFEIT GAME ⚠️\n\nAre you sure you want to forfeit this game?\n\n` +
-                `💰 Your wager: ${gameState.currentGame.wager} SOL\n` +
-                `💸 Forfeit fee: ${penaltyAmount.toFixed(4)} SOL (${(forfeitFee * 100).toFixed(0)}%)\n` +
-                `🔄 Refund amount: ${refundAmount.toFixed(4)} SOL\n\n` +
-                `This action cannot be undone.\n\nClick OK to forfeit, or Cancel to keep playing.`;
-            
-            if (!confirm(confirmMessage)) {
+            // Block forfeit if game is actively playing
+            if (isGamePlaying) {
+                showError('Cannot forfeit once the game has started! You must finish playing.', 'gameRoom');
                 return;
+            }
+            
+            // For waiting games, just notify backend to remove it
+            // Note: SOL stays in escrow until user manually calls cancel_game
+            if (isGameWaiting) {
+                const confirmMessage = `⚠️ CANCEL GAME ⚠️\n\nAre you sure you want to cancel this game?\n\n` +
+                    `Your ${gameState.currentGame.wager} SOL will remain in the escrow account.\n` +
+                    `The game will be removed from the lobby.\n\n` +
+                    `Note: To retrieve your SOL, you'll need to call the cancel_game function\n` +
+                    `(auto-refund feature coming soon).\n\n` +
+                    `Click OK to cancel this game.`;
+                
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
             }
             
             try {
-                // Forfeit the game (remove player from game)
+                console.log('🏳️ Canceling game...');
+                
+                // Call backend forfeit endpoint (which now just removes the game for waiting status)
                 const response = await fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/forfeit`, {
                     method: 'POST',
                     headers: {
@@ -1941,7 +1950,8 @@
                 });
                 
                 if (response.ok) {
-                    const forfeitData = await response.json();
+                    const data = await response.json();
+                    console.log('✅ Game cancelled:', data.message);
                     
                     // Clear game state FIRST before navigation
                     gameState.currentGame = null;
@@ -1963,6 +1973,9 @@
                     // Now return to lobby (after clearing game state)
                     showScreen('lobby');
                     updateAvailableGames();
+                    
+                    // Update balance
+                    setTimeout(() => updateWalletBalance(), 1000);
                 } else if (response.status === 404) {
                     // Game not found on server (probably from previous session)
                     
@@ -2367,6 +2380,7 @@
             // Show/hide input section based on game status
             const inputSection = document.querySelector('.input-section');
             const errorMessage = document.getElementById('errorMessage');
+            const forfeitBtn = document.getElementById('forfeitGameBtn');
             
             if (gameState.currentGame.status === 'waiting') {
                 if (inputSection) inputSection.style.display = 'none';
@@ -2377,9 +2391,23 @@
                     errorMessage.style.borderColor = '#FFA500';
                     errorMessage.style.backgroundColor = 'rgba(255, 165, 0, 0.1)';
                 }
+                // Show forfeit button for waiting games (can cancel)
+                if (forfeitBtn) {
+                    forfeitBtn.style.display = 'inline-block';
+                    forfeitBtn.textContent = 'Cancel Game';
+                    forfeitBtn.title = 'Cancel this game (your SOL will remain in escrow)';
+                }
+            } else if (gameState.currentGame.status === 'playing') {
+                if (inputSection) inputSection.style.display = 'block';
+                if (errorMessage) errorMessage.style.display = 'none';
+                // HIDE forfeit button during active play - must finish game
+                if (forfeitBtn) {
+                    forfeitBtn.style.display = 'none';
+                }
             } else {
                 if (inputSection) inputSection.style.display = 'block';
                 if (errorMessage) errorMessage.style.display = 'none';
+                if (forfeitBtn) forfeitBtn.style.display = 'none';
             }
         }
         
