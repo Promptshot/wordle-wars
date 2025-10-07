@@ -400,9 +400,9 @@ app.post('/api/games/:gameId/join', async (req, res) => {
         return res.status(404).json({ error: 'Game not found' });
     }
     
-    if (game.status !== 'waiting') {
-        // Game not available
-        return res.status(400).json({ error: 'Game is not available' });
+    if (game.status !== 'waiting' || game.blockchainStatus !== 'signed') {
+        // Game not available or blockchain not confirmed
+        return res.status(400).json({ error: 'Game is not available for joining' });
     }
     
     if (game.players.length >= 2) {
