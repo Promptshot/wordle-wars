@@ -141,17 +141,22 @@ pub mod wordle_escrow {
         require!(ctx.accounts.creator.key() == game_account.creator, ErrorCode::Unauthorized);
         
         let refund_amount = escrow_account.creator_deposited;
-        
         let escrow_info = ctx.accounts.escrow_account.to_account_info();
+        let game_info = ctx.accounts.game_account.to_account_info();
         let creator_info = ctx.accounts.creator.to_account_info();
         
-        **escrow_info.try_borrow_mut_lamports()? -= refund_amount;
-        **creator_info.try_borrow_mut_lamports()? += refund_amount;
+        // Calculate total refund including all lamports in both accounts
+        // This includes the wager + rent reserves from both game and escrow accounts
+        let escrow_lamports = escrow_info.lamports();
+        let game_lamports = game_info.lamports();
+        let total_refund = escrow_lamports + game_lamports;
         
-        game_account.status = GameStatus::Cancelled;
-        game_account.completed_at = Clock::get()?.unix_timestamp;
+        // Transfer all lamports from both accounts to creator
+        **escrow_info.try_borrow_mut_lamports()? = 0;
+        **game_info.try_borrow_mut_lamports()? = 0;
+        **creator_info.try_borrow_mut_lamports()? += total_refund;
         
-        msg!("Game cancelled, refunded: {} lamports", refund_amount);
+        msg!("Game cancelled, total refunded (including rent): {} lamports", total_refund);
         Ok(())
     }
     
