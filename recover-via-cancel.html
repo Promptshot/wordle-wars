@@ -38,6 +38,17 @@
         button:hover {
             background: #00cc66;
         }
+        .testnet-warning {
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8800 100%);
+            color: #FFFFFF;
+            padding: 15px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 2px solid #FFD700;
+        }
         .log {
             background: #000;
             padding: 15px;
@@ -55,6 +66,10 @@
 </head>
 <body>
     <div class="container">
+        <div class="testnet-warning">
+            ⚠️ <strong>TESTNET VERSION</strong> - This is a test environment on Solana Devnet. Not live on mainnet yet.
+        </div>
+        
         <h1>🔧 Recover Stuck SOL from Failed Games</h1>
         <p>This tool will call <code>cancel_game</code> on the smart contract to recover your SOL from stuck escrow accounts.</p>
         
@@ -92,7 +107,6 @@ Another escrow account
             const className = type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info');
             logDiv.innerHTML += `<div class="${className}">${new Date().toLocaleTimeString()}: ${message}</div>`;
             logDiv.scrollTop = logDiv.scrollHeight;
-            console.log(message);
         }
         
         async function connectWallet() {
@@ -228,4 +242,8 @@ Another escrow account
     </script>
 </body>
 </html>
+
+
+
+
 

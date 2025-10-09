@@ -7,13 +7,6 @@
 const REAL_BLOCKCHAIN_INTEGRATION = `
 // Real blockchain integration for deployed smart contract
 async function createBlockchainTransaction(fromAddress, amount, type, gameData = null) {
-    console.log('🚀 [REAL] createBlockchainTransaction called with:', {
-        fromAddress,
-        amount,
-        type,
-        gameData: gameData ? 'present' : 'null'
-    });
-    
     try {
         const provider = getProvider();
         if (!provider) {
@@ -28,8 +21,6 @@ async function createBlockchainTransaction(fromAddress, amount, type, gameData =
         if (!escrowDetails) {
             throw new Error('No escrow details provided by server');
         }
-        
-        console.log('🔍 [REAL] Escrow details:', escrowDetails);
         
         // Create the REAL transaction to your deployed smart contract
         const transaction = new solanaWeb3.Transaction();
@@ -69,23 +60,12 @@ async function createBlockchainTransaction(fromAddress, amount, type, gameData =
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = fromPubkey;
         
-        console.log('🔍 [REAL] Transaction prepared:', {
-            programId: programId.toString(),
-            gameAccount: gameAccount.toString(),
-            escrowAccount: escrowAccount.toString(),
-            wagerLamports: wagerLamports
-        });
-        
         // Sign and send the transaction
         const signedTransaction = await provider.signTransaction(transaction);
         const signature = await connection.sendRawTransaction(signedTransaction.serialize());
         
-        console.log('✅ [REAL] Transaction sent:', signature);
-        
         // Wait for confirmation
         await connection.confirmTransaction(signature, 'confirmed');
-        
-        console.log('✅ [REAL] Transaction confirmed:', signature);
         
         return { 
             success: true, 
@@ -94,7 +74,6 @@ async function createBlockchainTransaction(fromAddress, amount, type, gameData =
         };
         
     } catch (error) {
-        console.error('❌ [REAL] Transaction failed:', error);
         return { 
             success: false, 
             error: error.message 
@@ -104,8 +83,6 @@ async function createBlockchainTransaction(fromAddress, amount, type, gameData =
 
 // Real join game transaction
 async function joinBlockchainGame(gameData) {
-    console.log('🤝 [REAL] joinBlockchainGame called');
-    
     try {
         const provider = getProvider();
         if (!provider) {
@@ -147,8 +124,6 @@ async function joinBlockchainGame(gameData) {
         const signedTransaction = await provider.signTransaction(transaction);
         const signature = await connection.sendRawTransaction(signedTransaction.serialize());
         
-        console.log('✅ [REAL] Join transaction sent:', signature);
-        
         // Wait for confirmation
         await connection.confirmTransaction(signature, 'confirmed');
         
@@ -159,7 +134,6 @@ async function joinBlockchainGame(gameData) {
         };
         
     } catch (error) {
-        console.error('❌ [REAL] Join transaction failed:', error);
         return { 
             success: false, 
             error: error.message 
@@ -169,8 +143,6 @@ async function joinBlockchainGame(gameData) {
 
 // Real settle game transaction
 async function settleBlockchainGame(gameData, winnerAddress) {
-    console.log('🏆 [REAL] settleBlockchainGame called for winner:', winnerAddress);
-    
     try {
         const provider = getProvider();
         if (!provider) {
@@ -215,8 +187,6 @@ async function settleBlockchainGame(gameData, winnerAddress) {
         const signedTransaction = await provider.signTransaction(transaction);
         const signature = await connection.sendRawTransaction(signedTransaction.serialize());
         
-        console.log('✅ [REAL] Settle transaction sent:', signature);
-        
         // Wait for confirmation
         await connection.confirmTransaction(signature, 'confirmed');
         
@@ -227,7 +197,6 @@ async function settleBlockchainGame(gameData, winnerAddress) {
         };
         
     } catch (error) {
-        console.error('❌ [REAL] Settle transaction failed:', error);
         return { 
             success: false, 
             error: error.message 
@@ -237,3 +206,7 @@ async function settleBlockchainGame(gameData, winnerAddress) {
 `;
 
 module.exports = REAL_BLOCKCHAIN_INTEGRATION;
+
+
+
+

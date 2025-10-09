@@ -127,6 +127,25 @@
             margin-top: 40px;
         }
 
+        /* Testnet Warning Banner */
+        .testnet-warning {
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8800 100%);
+            color: #FFFFFF;
+            padding: 15px 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            border: 2px solid #FFD700;
+        }
+        
+        .testnet-warning-icon {
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 20px;
+        }
+
         .fee-box {
             background: rgba(255, 215, 0, 0.1);
             border: 1px solid #FFD700;
@@ -149,6 +168,11 @@
 </head>
 <body>
     <div class="container">
+        <div class="testnet-warning">
+            <span class="testnet-warning-icon">⚠️</span>
+            <strong>TESTNET VERSION</strong> - This is a test environment on Solana Devnet. Not live on mainnet yet. Use test SOL only.
+        </div>
+
         <div class="header">
             <img src="logowithtext.png" alt="Wordle Wars" class="logo">
             <div class="subtitle">Compete. Wager. Win.</div>

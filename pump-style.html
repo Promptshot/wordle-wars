@@ -694,6 +694,34 @@
         }
 
 
+        /* Testnet Warning Banner */
+        .testnet-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8800 100%);
+            color: #FFFFFF;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border-bottom: 2px solid #FFD700;
+        }
+        
+        .testnet-warning-icon {
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 18px;
+        }
+
+        /* Adjust body to account for fixed banner */
+        body {
+            padding-top: 48px;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
@@ -735,6 +763,12 @@
     </style>
 </head>
 <body>
+
+    <!-- Testnet Warning Banner -->
+    <div class="testnet-warning">
+        <span class="testnet-warning-icon">⚠️</span>
+        <strong>TESTNET VERSION</strong> - This is a test environment on Solana Devnet. Not live on mainnet yet. Use test SOL only.
+    </div>
 
     <!-- Sidebar -->
     <div class="sidebar">
@@ -1242,10 +1276,8 @@
                 if (balanceElement) {
                     balanceElement.textContent = balance.toFixed(4) + ' SOL';
                 }
-                
-                console.log('💰 Balance updated:', balance, 'SOL');
             } catch (error) {
-                console.error('Failed to update balance:', error);
+                // Silent error handling
             }
         }
         
@@ -1333,9 +1365,8 @@
                 if ('Notification' in window && Notification.permission === 'default') {
                     try {
                         await Notification.requestPermission();
-                        console.log('Notification permission:', Notification.permission);
                     } catch (e) {
-                        console.log('Notification permission request failed:', e);
+                        // Silent error handling
                     }
                 }
                 
@@ -1469,9 +1500,6 @@
         }
 
         async function createBlockchainTransaction(fromAddress, amount, type, gameData = null) {
-            console.log('🚀 [ANCHOR SDK] createBlockchainTransaction called');
-            console.log('🔍 Type:', type);
-            
             try {
                 const provider = getProvider();
                 if (!provider || !provider.isConnected) {
@@ -1483,8 +1511,6 @@
                 if (!escrowDetails) {
                     throw new Error('No escrow details provided by server');
                 }
-                
-                console.log('🔍 Escrow details:', escrowDetails);
                 
                 // Calculate lamports
                 const wagerLamports = new anchor.BN(Math.floor(amount * 1000000000));
@@ -1499,19 +1525,15 @@
                 const anchorProvider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' });
                 
                 // Load IDL
-                console.log('📥 Fetching IDL...');
                 const idlResponse = await fetch('/wordle-escrow-idl.json');
                 if (!idlResponse.ok) {
                     throw new Error('Failed to load IDL file');
                 }
                 const idl = await idlResponse.json();
-                console.log('✅ IDL loaded:', idl.name);
                 
                 // Create Anchor program instance
                 const programId = new solanaWeb3.PublicKey(escrowDetails.programId);
                 const program = new anchor.Program(idl, programId, anchorProvider);
-                
-                console.log('🔍 Anchor Program initialized:', programId.toString());
                 
                 // Get keypairs from server
                 const gameKeypair = solanaWeb3.Keypair.fromSecretKey(
@@ -1521,9 +1543,6 @@
                     new Uint8Array(escrowDetails.escrowKeypair.secretKey)
                 );
                 
-                console.log('🔍 Game Account:', gameKeypair.publicKey.toString());
-                console.log('🔍 Escrow Account:', escrowKeypair.publicKey.toString());
-                
                 // Verify keypairs are valid
                 if (!gameKeypair || !escrowKeypair) {
                     throw new Error('Invalid keypairs from server');
@@ -1532,9 +1551,6 @@
                 let signature;
                 
                 if (type === 'create_game') {
-                    console.log('📝 Calling create_game via Anchor SDK...');
-                    console.log('📝 Wager amount:', wagerLamports.toString(), 'lamports');
-                    
                     // Use Anchor's .rpc() method - it handles everything
                     signature = await program.methods
                         .createGame(wagerLamports)
@@ -1547,11 +1563,7 @@
                         .signers([gameKeypair, escrowKeypair])
                         .rpc();
                     
-                    console.log('📤 Transaction sent and confirmed:', signature);
-                    
                 } else if (type === 'join_game') {
-                    console.log('📝 Calling join_game via Anchor SDK...');
-                    
                     // Use Anchor's .rpc() method - prevents "already processed" errors
                     signature = await program.methods
                         .joinGame()
@@ -1562,11 +1574,7 @@
                             systemProgram: solanaWeb3.SystemProgram.programId,
                         })
                         .rpc();
-                    
-                    console.log('📤 Transaction sent and confirmed:', signature);
                 }
-                
-                console.log('✅ Transaction confirmed:', signature);
                 
                 // Update balance after successful transaction
                 setTimeout(() => updateWalletBalance(), 2000);
@@ -1578,18 +1586,6 @@
                 };
                 
             } catch (error) {
-                console.error('❌ Transaction failed:', error);
-                console.error('❌ Error details:', {
-                    message: error.message,
-                    logs: error.logs,
-                    stack: error.stack
-                });
-                
-                // Try to get more details from SendTransactionError
-                if (error.logs) {
-                    console.error('📋 Transaction logs:', error.logs);
-                }
-                
                 return { 
                     success: false, 
                     error: error.message 
@@ -1645,8 +1641,6 @@
             });
             
             socket.on('gameStarted', (game) => {
-                console.log('🎮 Game started event received:', game);
-                
                 // Update game state for Player 1 when Player 2 joins
                 if (game.id === gameState.currentGame?.id) {
                     gameState.currentGame = game;
@@ -1929,13 +1923,10 @@
                 return;
             }
             
-            try {
-                        console.log('🏳️ Calling cancel_game on smart contract...');
-                        
+                    try {
                         // Check if we already processed this transaction recently
                         const txKey = `${gameState.currentGame.id}_cancel`;
                         if (recentTransactions.has(txKey)) {
-                            console.log('⚠️ Cancel transaction already processed recently, skipping...');
                             showSuccessMessage('Game cancellation already processed. Your SOL should be refunded.', 'gameRoom');
                             return;
                         }
@@ -1972,11 +1963,6 @@
                             new Uint8Array(gameState.currentGame.escrowDetails.escrowKeypair.secretKey)
                         );
                         
-                        console.log('📝 Calling cancel_game...');
-                        console.log('   Creator:', provider.publicKey.toString());
-                        console.log('   Game Account:', gameKeypair.publicKey.toString());
-                        console.log('   Escrow Account:', escrowKeypair.publicKey.toString());
-                        
                         // Use Anchor's RPC method to send transaction directly
                         // This handles blockhash, signing, and sending in one call
                         const signature = await program.methods
@@ -1988,21 +1974,13 @@
                             })
                             .rpc();
                         
-                        console.log('📤 Cancel transaction sent:', signature);
-                        
                         // Mark as processed
                         recentTransactions.add(txKey);
                         setTimeout(() => recentTransactions.delete(txKey), 30000); // Remove after 30 seconds
                         
-                        console.log('✅ Game cancelled on blockchain, refund issued:', signature);
-                        
                     } catch (cancelError) {
-                        console.error('❌ Cancel transaction failed:', cancelError);
-                        
                         // Check if it's a "GameNotWaiting" error (game already cancelled/joined)
                         if (cancelError.message.includes('GameNotWaiting') || cancelError.message.includes('Game is not in waiting status')) {
-                            console.log('ℹ️ Game already cancelled or not in waiting state');
-                            console.log('⚠️ Will still notify backend to clean up game state');
                             showSuccessMessage('Game was already cancelled. Cleaning up and returning to lobby...', 'gameRoom');
                             
                             // Update game feed
@@ -2016,7 +1994,6 @@
                             // DON'T return here - continue to backend cleanup below!
                         } else {
                             // Other blockchain errors - show error but still try backend cleanup
-                            console.error('⚠️ Blockchain cancel failed with error:', cancelError.message);
                             showError('Failed to cancel game on blockchain: ' + cancelError.message, 'gameRoom');
                             // DON'T return - still try backend cleanup
                         }
@@ -2024,8 +2001,6 @@
                 }
             
                 try {
-                    console.log('🏳️ Notifying backend to remove game...');
-                    
                     // Call backend forfeit endpoint to remove the game from the list
                     const response = await fetch(`${SERVER_URL}/api/games/${gameState.currentGame.id}/forfeit`, {
                         method: 'POST',
@@ -2039,7 +2014,6 @@
                     
                     if (response.ok) {
                         const data = await response.json();
-                        console.log('✅ Backend notified:', data.message);
                         
                         // Update game feed with cancelled status
                         if (gameState.currentGame) {
@@ -2128,10 +2102,8 @@
         // Game Creation
         // Function to clear stuck games
         async function createGame() {
-            console.log('🚀 [DEBUG] createGame called');
             // Check for active game
             if (gameState.currentGame && !gameState.gameOver) {
-                console.log('⚠️ [DEBUG] Active game detected, showing error');
                 checkActiveGame(); // Show the active game section
                 showError('You already have an active game! Use the "Rejoin Game" button below.', 'lobby');
                 return;
@@ -2183,8 +2155,6 @@
                     },
                     body: JSON.stringify(requestBody)
                 });
-                
-                console.log('🔍 [DEBUG] Response status:', response.status);
                 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
